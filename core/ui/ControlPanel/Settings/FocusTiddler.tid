@@ -1,0 +1,8 @@
+title: $:/core/ui/ControlPanel/Settings/FocusTiddler
+tags: $:/tags/ControlPanel/Settings
+caption: {{$:/language/ControlPanel/Settings/FocusTiddler/Caption}}
+
+\define lingo-base() $:/language/ControlPanel/Settings/FocusTiddler/
+<<lingo Hint>>
+
+<$checkbox tiddler="$:/config/FocusTiddler" field="text" checked="yes" unchecked="no" default="no"> <$link to="$:/config/FocusTiddler"><<lingo Description>></$link> </$checkbox>
