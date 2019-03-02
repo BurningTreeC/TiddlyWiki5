@@ -47,7 +47,8 @@ DroppableWidget.prototype.render = function(parent,nextSibling) {
 		{name: "dragenter", handlerObject: this, handlerMethod: "handleDragEnterEvent"},
 		{name: "dragover", handlerObject: this, handlerMethod: "handleDragOverEvent"},
 		{name: "dragleave", handlerObject: this, handlerMethod: "handleDragLeaveEvent"},
-		{name: "drop", handlerObject: this, handlerMethod: "handleDropEvent"}
+		{name: "drop", handlerObject: this, handlerMethod: "handleDropEvent"},
+		{name: "dragend", handlerObject: this, handlerMethod: "handleDragEndEvent"}
 	]);
 	// Insert element
 	parent.insertBefore(domNode,nextSibling);
@@ -101,6 +102,10 @@ DroppableWidget.prototype.handleDragOverEvent  = function(event) {
 DroppableWidget.prototype.handleDragLeaveEvent  = function(event) {
 	this.leaveDrag(event);
 	return false;
+};
+
+DroppableWidget.prototype.handleDragEndEvent = function(event) {
+	$tw.utils.removeClass(this.domNodes[0],"tc-dragover");
 };
 
 DroppableWidget.prototype.handleDropEvent  = function(event) {
