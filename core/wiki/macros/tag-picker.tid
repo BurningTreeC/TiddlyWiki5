@@ -27,10 +27,17 @@ $actions$
 </$button>
 \end
 
-\define clear-tags-actions()
+\define clear-tags-actions-inner()
 <$list filter="[<__storeTitle__>has[text]] [<__tiddler__>has[text]]" variable="ignore" emptyMessage="""<<delete-tag-state-tiddlers>><$action-sendmessage $message="tm-cancel-tiddler"/>""">
 <<delete-tag-state-tiddlers>>
 </$list>
+\end
+
+\define clear-tags-actions()
+<$set name="userInput" value={{{ [<__storeTitle__>get[text]] }}}><$list filter="[<__tiddler__>get[text]!match<userInput>]" emptyMessage="""<<clear-tags-actions-inner>>""">
+<$action-setfield $tiddler=<<__tiddler__>> text=<<userInput>>/><$action-setfield $tiddler=<<__refreshTitle__>> text="yes"/>
+</$list>
+</$set>
 \end
 
 \define tag-picker-inner(actions)
