@@ -41,7 +41,7 @@ $actions$
 \define clear-tags-actions()
 <$set name="userInput" value={{{ [<storeTitle>get[text]] }}}>
 <$list filter="[<newTagNameTiddler>get[text]!match<userInput>]" emptyMessage="""<<clear-tags-actions-inner>>""">
-<$action-setfield $tiddler=<<newTagNameTiddler>> text=<<userInput>>/><$action-setfield $tiddler=<<refreshTitle>> text="yes"/>
+<$action-setfield $tiddler=<<newTagNameTiddler>> text=<<userInput>>/><$action-setfield $tiddler=<<refreshTitle>> text="yes"/><$action-deletetiddler $tiddler=<<tagSelectionState>>/>
 </$list>
 </$set>
 \end
