@@ -1,5 +1,6 @@
-title: $:/palettes/MacOSDark
+title: $:/palettes/CupertinoDark
 tags: $:/tags/palette
+name: Cupertino Dark
 description: A MacOS inspired dark palette
 
 alert-background: <<colour background>>
