@@ -29,6 +29,8 @@ The plugin includes support for the following languages (referred to as "brushes
 * autohotkey
 * awk
 * bash
+* c
+* clojure
 * cmake
 * coffeescript
 * cpp
@@ -54,7 +56,6 @@ The plugin includes support for the following languages (referred to as "brushes
 * lua
 * makefile
 * markdown
-* mathematica
 * matlab
 * nginx
 * objectivec
@@ -62,8 +63,8 @@ The plugin includes support for the following languages (referred to as "brushes
 * php
 * plaintext
 * powershell
-* properties
 * python
+* python profiler
 * R
 * ruby
 * rust
