@@ -13,7 +13,8 @@ The `tm-open-window` message opens a tiddler in a new //browser// window. If no 
 |windowTitle |Title string for the opened window |
 |width |Width of the new browser window |
 |height |Height of the new browser window |
-|paramObject |Hashmap of variables that will be provided to the window  |
+|class |Class applied to the `<body>` element of the new window |
+|paramObject |Hashmap of variables that will be provided to the window |
 
 
 The `tm-open-window` message is usually generated with the ButtonWidget and is handled by the core itself.
