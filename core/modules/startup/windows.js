@@ -32,7 +32,8 @@ exports.startup = function() {
 			template = paramObject.template || "$:/core/templates/single.tiddler.window",
 			width = paramObject.width || "700",
 			height = paramObject.height || "600",
-			variables = $tw.utils.extend({},paramObject,{currentTiddler: title});
+			variables = $tw.utils.extend({},paramObject,{currentTiddler: title}),
+			classes = paramObject.class ? paramObject.class.split(" ") : [""];
 		// Open the window
 		var srcWindow,
 		    srcDocument;
@@ -50,7 +51,7 @@ exports.startup = function() {
 			return;
 		}
 		// Initialise the document
-		srcDocument.write("<html><head></head><body class='tc-body tc-single-tiddler-window'></body></html>");
+		srcDocument.write("<html><head></head><body class='tc-body tc-single-tiddler-window " + classes.join(" ") + "'></body></html>");
 		srcDocument.close();
 		srcDocument.title = windowTitle;
 		srcWindow.addEventListener("beforeunload",function(event) {
