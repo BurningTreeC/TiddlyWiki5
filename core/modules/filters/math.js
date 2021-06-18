@@ -19,6 +19,10 @@ Note that strings are converted to numbers automatically. Trailing non-digits ar
 /*global $tw: false */
 "use strict";
 
+exports.parseint = makeNumericBinaryOperator(
+	function(a) {return parseInt(a)}
+);
+
 exports.negate = makeNumericBinaryOperator(
 	function(a) {return -a}
 );
