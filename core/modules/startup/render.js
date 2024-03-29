@@ -71,11 +71,15 @@ exports.startup = function() {
 		}
 	}
 
+	function createStyleWidgetNode() {
+		$tw.styleWidgetNode = $tw.wiki.makeTranscludeWidget(PAGE_STYLESHEET_TITLE,{document: $tw.fakeDocument});
+		$tw.styleContainer = $tw.fakeDocument.createElement("div");
+		$tw.styleWidgetNode.render($tw.styleContainer,null);
+		$tw.styleWidgetListNode = findWidgetNode($tw.styleWidgetNode,"list","$list");
+	}
+
 	// Set up the styles
-	$tw.styleWidgetNode = $tw.wiki.makeTranscludeWidget(PAGE_STYLESHEET_TITLE,{document: $tw.fakeDocument});
-	$tw.styleContainer = $tw.fakeDocument.createElement("div");
-	$tw.styleWidgetNode.render($tw.styleContainer,null);
-	$tw.styleWidgetListNode = findWidgetNode($tw.styleWidgetNode,"list","$list");
+	createStyleWidgetNode();
 	$tw.styleContainerNodes = [];
 	$tw.styleElements = [];
 	$tw.styleTiddlers = [];
@@ -83,34 +87,45 @@ exports.startup = function() {
 
 	$tw.wiki.addEventListener("change",function(changes) {
 		if(changes[PAGE_STYLESHEET_TITLE]) {
-			$tw.styleWidgetListNode = findWidgetNode($tw.styleWidgetNode,"list","$list");
-		}
-		$tw.perf.report("styleRefresh",function() {
-			if($tw.styleWidgetNode.refresh(changes,$tw.styleContainer,null)) {
-				var styleTiddlers = [];
-				for(var i=0; i<$tw.styleWidgetListNode.children.length; i++) {
-					var stylesheetTitle = $tw.styleWidgetListNode.children[i].parseTreeNode.itemTitle;
-					styleTiddlers.push(stylesheetTitle);
+			createStyleWidgetNode();
+			if($tw.styleWidgetListNode) {
+				for(var i=0; i<$tw.styleTiddlers.length; i++) {
+					document.head.removeChild($tw.styleElements[i]);
 				}
-				if(!$tw.utils.arraysEqual($tw.styleTiddlers,styleTiddlers)) {
-					for(var i=0; i<$tw.styleTiddlers.length; i++) {
-						document.head.removeChild($tw.styleElements[i]);
-					}
-					$tw.styleTiddlers = [];
-					$tw.styleElements = [];
-					$tw.styleContainerNodes = [];
-					createStyleTags();
-				} else {
+				$tw.styleContainerNodes = [];
+				$tw.styleElements = [];
+				$tw.styleTiddlers = [];
+				createStyleTags();
+			}
+		}
+		if($tw.styleWidgetListNode) {
+			$tw.perf.report("styleRefresh",function() {
+				if($tw.styleWidgetNode.refresh(changes,$tw.styleContainer,null)) {
+					var styleTiddlers = [];
 					for(var i=0; i<$tw.styleWidgetListNode.children.length; i++) {
-						var newStyles = $tw.styleContainerNodes[i].textContent;
-						if(newStyles !== $tw.styleWidgetListNode.children[i].assignedStyles) {
-							$tw.styleWidgetListNode.children[i].assignedStyles = newStyles;
-							$tw.styleElements[i].innerHTML = $tw.styleWidgetListNode.children[i].assignedStyles;
+						var stylesheetTitle = $tw.styleWidgetListNode.children[i].parseTreeNode.itemTitle;
+						styleTiddlers.push(stylesheetTitle);
+					}
+					if(!$tw.utils.arraysEqual($tw.styleTiddlers,styleTiddlers)) {
+						for(var i=0; i<$tw.styleTiddlers.length; i++) {
+							document.head.removeChild($tw.styleElements[i]);
+						}
+						$tw.styleTiddlers = [];
+						$tw.styleElements = [];
+						$tw.styleContainerNodes = [];
+						createStyleTags();
+					} else {
+						for(var i=0; i<$tw.styleWidgetListNode.children.length; i++) {
+							var newStyles = $tw.styleContainerNodes[i].textContent;
+							if(newStyles !== $tw.styleWidgetListNode.children[i].assignedStyles) {
+								$tw.styleWidgetListNode.children[i].assignedStyles = newStyles;
+								$tw.styleElements[i].innerHTML = $tw.styleWidgetListNode.children[i].assignedStyles;
+							}
 						}
 					}
 				}
-			}
-		})();
+			})();
+		}
 	});
 
 	// Display the $:/core/ui/PageTemplate tiddler to kick off the display
