@@ -20,7 +20,7 @@ exports.synchronous = true;
 
 // Default story and history lists
 var PAGE_TITLE_TITLE = "$:/core/wiki/title";
-var PAGE_STYLESHEET_TITLE = "$:/core/ui/PageStylesheet";
+var PAGE_STYLESHEET_TITLE = "$:/core/ui/RootStylesheet";
 var PAGE_TEMPLATE_TITLE = "$:/core/ui/RootTemplate";
 
 // Time (in ms) that we defer refreshing changes to draft tiddlers
@@ -38,23 +38,81 @@ exports.startup = function() {
 			document.title = $tw.titleContainer.textContent;
 		}
 	});
-	// Set up the styles
-	$tw.styleWidgetNode = $tw.wiki.makeTranscludeWidget(PAGE_STYLESHEET_TITLE,{document: $tw.fakeDocument});
-	$tw.styleContainer = $tw.fakeDocument.createElement("style");
-	$tw.styleWidgetNode.render($tw.styleContainer,null);
-	$tw.styleWidgetNode.assignedStyles = $tw.styleContainer.textContent;
-	$tw.styleElement = document.createElement("style");
-	$tw.styleElement.innerHTML = $tw.styleWidgetNode.assignedStyles;
-	document.head.insertBefore($tw.styleElement,document.head.firstChild);
-	$tw.wiki.addEventListener("change",$tw.perf.report("styleRefresh",function(changes) {
-		if($tw.styleWidgetNode.refresh(changes,$tw.styleContainer,null)) {
-			var newStyles = $tw.styleContainer.textContent;
-			if(newStyles !== $tw.styleWidgetNode.assignedStyles) {
-				$tw.styleWidgetNode.assignedStyles = newStyles;
-				$tw.styleElement.innerHTML = $tw.styleWidgetNode.assignedStyles;
+
+	function findWidgetNode(widget,type,tag) {
+		if(widget.parseTreeNode.type === type && widget.parseTreeNode.tag === tag) {
+			return widget;
+		}
+		for(var i=0; i<widget.children.length; i++) {
+			return findWidgetNode(widget.children[i],type,tag);
+		}
+	}
+
+	function createStyleTags() {
+		for(var i=0; i<$tw.styleWidgetListNode.children.length; i++) {
+			$tw.styleTiddlers.push($tw.styleWidgetListNode.children[i].parseTreeNode.itemTitle);
+			var styleContainerNode = findWidgetNode($tw.styleWidgetListNode.children[i],"element","style");
+			$tw.styleContainerNodes.push(styleContainerNode.domNodes[0]);
+			$tw.styleWidgetListNode.children[i].assignedStyles = $tw.styleContainerNodes[i].textContent;
+			$tw.styleElements.push(document.createElement("style"));
+			$tw.styleElements[i].innerHTML = $tw.styleWidgetListNode.children[i].assignedStyles;
+		}
+		var styleTags = document.head.getElementsByTagName("style");
+		if(styleTags.length) {
+			for(var i=0; i<$tw.styleWidgetListNode.children.length; i++) {
+				var lastStyleTag = styleTags[styleTags.length - 1],
+					insertBeforeElement = lastStyleTag.nextSibling;
+				document.head.insertBefore($tw.styleElements[i],insertBeforeElement);				
+			}
+		} else {
+			for(i=($tw.styleWidgetListNode.children.length - 1); i>=0; i--) {
+				document.head.insertBefore($tw.styleElements[i],document.head.firstChild);
 			}
 		}
-	}));
+	}
+
+	// Set up the styles
+	$tw.styleWidgetNode = $tw.wiki.makeTranscludeWidget(PAGE_STYLESHEET_TITLE,{document: $tw.fakeDocument});
+	$tw.styleContainer = $tw.fakeDocument.createElement("div");
+	$tw.styleWidgetNode.render($tw.styleContainer,null);
+	$tw.styleWidgetListNode = findWidgetNode($tw.styleWidgetNode,"list","$list");
+	$tw.styleContainerNodes = [];
+	$tw.styleElements = [];
+	$tw.styleTiddlers = [];
+	createStyleTags();
+
+	$tw.wiki.addEventListener("change",function(changes) {
+		if(changes[PAGE_STYLESHEET_TITLE]) {
+			$tw.styleWidgetListNode = findWidgetNode($tw.styleWidgetNode,"list","$list");
+		}
+		$tw.perf.report("styleRefresh",function() {
+			if($tw.styleWidgetNode.refresh(changes,$tw.styleContainer,null)) {
+				var styleTiddlers = [];
+				for(var i=0; i<$tw.styleWidgetListNode.children.length; i++) {
+					var stylesheetTitle = $tw.styleWidgetListNode.children[i].parseTreeNode.itemTitle;
+					styleTiddlers.push(stylesheetTitle);
+				}
+				if(!$tw.utils.arraysEqual($tw.styleTiddlers,styleTiddlers)) {
+					for(var i=0; i<$tw.styleTiddlers.length; i++) {
+						document.head.removeChild($tw.styleElements[i]);
+					}
+					$tw.styleTiddlers = [];
+					$tw.styleElements = [];
+					$tw.styleContainerNodes = [];
+					createStyleTags();
+				} else {
+					for(var i=0; i<$tw.styleWidgetListNode.children.length; i++) {
+						var newStyles = $tw.styleContainerNodes[i].textContent;
+						if(newStyles !== $tw.styleWidgetListNode.children[i].assignedStyles) {
+							$tw.styleWidgetListNode.children[i].assignedStyles = newStyles;
+							$tw.styleElements[i].innerHTML = $tw.styleWidgetListNode.children[i].assignedStyles;
+						}
+					}
+				}
+			}
+		})();
+	});
+
 	// Display the $:/core/ui/PageTemplate tiddler to kick off the display
 	$tw.perf.report("mainRender",function() {
 		$tw.pageWidgetNode = $tw.wiki.makeTranscludeWidget(PAGE_TEMPLATE_TITLE,{document: document, parentWidget: $tw.rootWidget, recursionMarker: "no"});
