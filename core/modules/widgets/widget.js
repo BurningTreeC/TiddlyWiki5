@@ -353,7 +353,8 @@ filterFn: only include attributes where filterFn(name) returns true
 Widget.prototype.computeAttributes = function(options) {
 	options = options || {};
 	var changedAttributes = {},
-		self = this;
+		self = this,
+		hasOnlyStaticAttributes = true;
 	$tw.utils.each(this.parseTreeNode.attributes,function(attribute,name) {
 		if(options.filterFn) {
 			if(!options.filterFn(name)) {
@@ -362,10 +363,12 @@ Widget.prototype.computeAttributes = function(options) {
 		}
 		var value = self.computeAttribute(attribute);
 		if(self.attributes[name] !== value) {
+			hasOnlyStaticAttributes = false;
 			self.attributes[name] = value;
 			changedAttributes[name] = true;
 		}
 	});
+	this.hasOnlyStaticAttributes = hasOnlyStaticAttributes;
 	return changedAttributes;
 };
 
