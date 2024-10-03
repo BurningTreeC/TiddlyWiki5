@@ -8,6 +8,8 @@ title: $:/core/macros/sidebar-resizer
 			story-river-width=<<storyRiverWidth>>
 			sidebar-width=<<sidebarWidth>>
 		/>
+		<$action-setfield $tiddler="$:/themes/tiddlywiki/vanilla/metrics/storywidth" text={{{ [<storyRiverWidth>addsuffix[px]] }}}/>
+		<$action-setfield $tiddler="$:/themes/tiddlywiki/vanilla/metrics/sidebarwidth" text={{{ [<sidebarWidth>addsuffix[px]] }}}/>
 		<$action-setfield $tiddler="$:/state/sidebar/resizing" text="yes"/>
 	</$let>
 <% endif %>
@@ -22,6 +24,8 @@ title: $:/core/macros/sidebar-resizer
 			story-river-width=<<storyRiverWidth>>
 			sidebar-width=<<sidebarWidth>>
 		/>
+		<$action-setfield $tiddler="$:/themes/tiddlywiki/vanilla/metrics/storywidth" text={{{ [<storyRiverWidth>addsuffix[px]] }}}/>
+		<$action-setfield $tiddler="$:/themes/tiddlywiki/vanilla/metrics/sidebarwidth" text={{{ [<sidebarWidth>addsuffix[px]] }}}/>
 	</$let>
 <% endif %>
 \end
