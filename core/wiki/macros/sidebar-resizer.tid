@@ -3,14 +3,13 @@ title: $:/core/macros/sidebar-resizer
 \procedure sidebar-resizer-pointerdown-actions()
 <%if [[$:/state/sidebar/resizing]is[missing]then<event-mousebutton>match[left]then<modifier>match[normal]] %>
 	<$let dragDiff=<<event-fromselected-posx>> storyRiverWidth={{{ [<event-fromcatcher-posx>subtract<dragDiff>] }}} sidebarWidth={{{ [<tv-widgetnode-width>subtract<event-fromcatcher-posx>add<dragDiff>] }}}>
-		<$action-setfield $tiddler="$:/state/sidebar/dimensions"
-			drag-diff=<<dragDiff>>
-			story-river-width=<<storyRiverWidth>>
-			sidebar-width=<<sidebarWidth>>
-		/>
-		<$action-setfield $tiddler="$:/themes/tiddlywiki/vanilla/metrics/storywidth" text={{{ [<storyRiverWidth>addsuffix[px]] }}}/>
-		<$action-setfield $tiddler="$:/themes/tiddlywiki/vanilla/metrics/sidebarwidth" text={{{ [<sidebarWidth>addsuffix[px]] }}}/>
-		<$action-setfield $tiddler="$:/state/sidebar/resizing" text="yes"/>
+		<%if  [{$:/themes/tiddlywiki/vanilla/options/sidebarlayout}match[fixed-fluid]] %>
+			<$action-setfield $tiddler="$:/themes/tiddlywiki/vanilla/metrics/storywidth" text={{{ [<storyRiverWidth>addsuffix[px]] }}}/>
+			<$action-setfield $tiddler="$:/themes/tiddlywiki/vanilla/metrics/storyright" text={{{ [<event-fromcatcher-posx>add<dragDiff>addsuffix[px]] }}}/>
+		<% else %>
+			<$action-setfield $tiddler="$:/themes/tiddlywiki/vanilla/metrics/sidebarwidth" text={{{ [<sidebarWidth>addsuffix[px]] }}}/>
+		<% endif %>
+		<$action-setfield $tiddler="$:/state/sidebar/resizing" text="yes" drag-diff=<<dragDiff>>/>
 	</$let>
 <% endif %>
 \end
@@ -19,13 +18,13 @@ title: $:/core/macros/sidebar-resizer
 \end
 \procedure sidebar-resizer-pointermove-actions()
 <%if [[$:/state/sidebar/resizing]!is[missing]] %>
-	<$let storyRiverWidth={{{ [<event-fromcatcher-posx>subtract{$:/state/sidebar/dimensions!!drag-diff}] }}} sidebarWidth={{{ [<tv-widgetnode-width>subtract<event-fromcatcher-posx>add{$:/state/sidebar/dimensions!!drag-diff}] }}}>
-		<$action-setfield $tiddler="$:/state/sidebar/dimensions"
-			story-river-width=<<storyRiverWidth>>
-			sidebar-width=<<sidebarWidth>>
-		/>
-		<$action-setfield $tiddler="$:/themes/tiddlywiki/vanilla/metrics/storywidth" text={{{ [<storyRiverWidth>addsuffix[px]] }}}/>
-		<$action-setfield $tiddler="$:/themes/tiddlywiki/vanilla/metrics/sidebarwidth" text={{{ [<sidebarWidth>addsuffix[px]] }}}/>
+	<$let storyRiverWidth={{{ [<event-fromcatcher-posx>subtract{$:/state/sidebar/resizing!!drag-diff}] }}} sidebarWidth={{{ [<tv-widgetnode-width>subtract<event-fromcatcher-posx>add{$:/state/sidebar/resizing!!drag-diff}] }}}>
+		<%if  [{$:/themes/tiddlywiki/vanilla/options/sidebarlayout}match[fixed-fluid]] %>
+			<$action-setfield $tiddler="$:/themes/tiddlywiki/vanilla/metrics/storywidth" text={{{ [<storyRiverWidth>addsuffix[px]] }}}/>
+			<$action-setfield $tiddler="$:/themes/tiddlywiki/vanilla/metrics/storyright" text={{{ [<event-fromcatcher-posx>add{$:/state/sidebar/resizing!!drag-diff}addsuffix[px]] }}}/>
+		<% else %>
+			<$action-setfield $tiddler="$:/themes/tiddlywiki/vanilla/metrics/sidebarwidth" text={{{ [<sidebarWidth>addsuffix[px]] }}}/>
+		<% endif %>
 	</$let>
 <% endif %>
 \end

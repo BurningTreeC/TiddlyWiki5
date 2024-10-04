@@ -32,7 +32,7 @@ background-size:` {{$:/themes/tiddlywiki/vanilla/settings/backgroundimagesize}}`
 \end
 
 \define if-fluid-fixed(text,hiddenSidebarText)
-<%if [{$:/themes/tiddlywiki/vanilla/options/sidebarlayout}match[fluid-fixed]] [[$:/state/sidebar/dimensions]!is[missing]] %>
+<%if [{$:/themes/tiddlywiki/vanilla/options/sidebarlayout}match[fluid-fixed]] %>
 $text$
 <$reveal state="$:/state/sidebar" type="nomatch" text="yes" default="yes">
 $hiddenSidebarText$
@@ -1046,8 +1046,8 @@ button.tc-btn-invisible.tc-remove-tag-button {
 		position: relative;
 		left: {{$:/themes/tiddlywiki/vanilla/metrics/storyleft}};
 		top: {{$:/themes/tiddlywiki/vanilla/metrics/storytop}};
-		width: calc({{$:/themes/tiddlywiki/vanilla/metrics/storywidth}} - 42px);
-		max-width: calc(100% - {{$:/themes/tiddlywiki/vanilla/metrics/storyright}} - 42px);
+		width: calc({{$:/themes/tiddlywiki/vanilla/metrics/storywidth}} - 14px);
+		max-width: calc(100% - {{$:/themes/tiddlywiki/vanilla/metrics/sidebarminwidth}});
 		padding: 42px 0px 42px 42px;
 	}
 
@@ -1159,7 +1159,7 @@ button.tc-btn-invisible.tc-remove-tag-button {
 @media (min-width: <<sidebarbreakpoint>>) {
 	.tc-tiddler-frame {
 		padding: 28px 42px 42px 42px;
-		width: {{$:/themes/tiddlywiki/vanilla/metrics/tiddlerwidth}};
+		width: min({{$:/themes/tiddlywiki/vanilla/metrics/tiddlerwidth}},100%);
 		border-radius: 2px;
 	}
 
