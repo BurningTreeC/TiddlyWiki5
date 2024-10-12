@@ -681,7 +681,9 @@ Widget.prototype.refreshChildren = function(changedTiddlers) {
 	var children = this.children,
 		refreshed = false;
 	for (var i = 0; i < children.length; i++) {
-		refreshed = children[i].refresh(changedTiddlers) || refreshed;
+		if($tw.utils.hopArray(changedTiddlers,this.tiddlersOfInterest) {
+			refreshed = children[i].refresh(changedTiddlers) || refreshed;
+		}
 	}
 	return refreshed;
 };
