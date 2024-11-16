@@ -494,35 +494,14 @@ title: $:/core/procedures/sidebar-resizer
 	selector=".tc-slider"
 	matchSelector=".tc-slider"
 	$pointerdown=<<sidebar-resizer-pointerdown-actions-inner>>
-	$pointerup=<<sidebar-resizer-pointercancel-actions>>>
+	$pointerup=<<sidebar-resizer-pointercancel-actions>>
+	$pointermove=<<sidebar-resizer-pointermove-actions>>
+	$pointerleave=<<sidebar-resizer-pointercancel-actions>>
+	$pointerout=<<sidebar-resizer-pointercancel-actions>>
+	$pointercancel=<<sidebar-resizer-pointercancel-actions>>
+	$contextmenu=<<sidebar-resizer-pointercancel-actions>>>
 
 	<%if [<resizer.state>!match[no]] %>
-
-		<$eventcatcher
-			tag="div"
-			class=<<get.active.class tc-slider-pointermove-eventcatcher-wrapper>>
-			selector=".tc-slider"
-			matchSelector=".tc-slider"
-			$pointerup=<<sidebar-resizer-pointercancel-actions>>>
-
-			<$eventcatcher
-				tag="div"
-				selector=".tc-slider-pointermove"
-				matchSelector=".tc-slider-pointermove"
-				class=<<get.active.class tc-slider-pointermove-eventcatcher>>
-				$pointerup=<<sidebar-resizer-pointercancel-actions>>
-				$pointerleave=<<sidebar-resizer-pointercancel-actions>>
-				$pointerout=<<sidebar-resizer-pointercancel-actions>>
-				$pointercancel=<<sidebar-resizer-pointercancel-actions>>
-				$pointerdown=<<sidebar-resizer-pointercancel-actions>>
-				$touchstart=<<sidebar-resizer-pointercancel-actions>>
-				$pointermove=<<sidebar-resizer-pointermove-actions>>
-				$touchmove=<<sidebar-resizer-pointermove-actions>>
-				$contextmenu=<<sidebar-resizer-pointercancel-actions>>>
-
-				<div class=<<get.active.class tc-slider-pointermove>>/>
-
-			</$eventcatcher>
 
 			<%if [<get.slider.condition>match[yes]] %>
 
@@ -541,8 +520,6 @@ title: $:/core/procedures/sidebar-resizer
 				<$transclude $tiddler=<<template>> mode=<<mode>>/>
 
 			<% endif %>
-
-		</$eventcatcher>
 
 	<% endif %>
 

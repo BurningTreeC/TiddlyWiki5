@@ -42,6 +42,9 @@ EventWidget.prototype.render = function(parent,nextSibling) {
 	this.domNode = domNode;
 	// Assign classes
 	this.assignDomNodeClasses();
+	if(this.types.indexOf("pointerdown") !== -1 && this.types.indexOf("pointermove") !== -1 && this.types.indexOf("pointerup") !== -1) {
+		$tw.pointerIds = $tw.pointerIds || [];
+	}
 	// Add our event handler
 	$tw.utils.each(this.types,function(type) {
 		domNode.addEventListener(type,function(event) {
@@ -73,6 +76,36 @@ EventWidget.prototype.render = function(parent,nextSibling) {
 				// Only set up variables if we have actions to invoke
 				if(actions) {
 					variables = $tw.utils.collectDOMVariables(selectedNode,self.domNode,event);
+				}
+			}
+			if(type === "pointerdown" && (self.types.indexOf("pointerup") !== -1) && (self.types.indexOf("pointermove") !== -1)) {
+				var pointerIdObject = {
+					selectedNode: selectedNode,
+					pointerId: event.pointerId
+				}
+				var existingPointerIdObject = $tw.pointerIds.find(function(item) {
+					return item.selectedNode === selectedNode;
+				});
+				if(!existingPointerIdObject) {
+					selectedNode.setPointerCapture(event.pointerId);
+				}
+				if($tw.pointerIds.indexOf(pointerIdObject) === -1) {
+					$tw.pointerIds.push(pointerIdObject);
+				}
+			}
+			if(type === "pointerup" && (self.types.indexOf("pointerdown") !== -1) && (self.types.indexOf("pointermove") !== -1)) {
+				var pointerIdObject = $tw.pointerIds.find(function(item) {
+					return item.selectedNode === selectedNode;
+				});
+				$tw.pointerIds.splice($tw.pointerIds.indexOf(pointerIdObject), 1);
+				selectedNode.releasePointerCapture(pointerIdObject.pointerId);
+			}
+			if(type === "pointermove" && (self.types.indexOf("pointerdown") !== -1) && (self.types.indexOf("pointerup") !== -1)) {
+				var pointerIdObject = $tw.pointerIds.find(function(item) {
+					return item.selectedNode === selectedNode;
+				});
+				if(!pointerIdObject || !selectedNode.hasPointerCapture(pointerIdObject.pointerId)) {
+					return false;
 				}
 			}
 			// Execute our actions with the variables
