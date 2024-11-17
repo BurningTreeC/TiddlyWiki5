@@ -12,16 +12,16 @@ Keyboard handling utilities
 /*global $tw: false */
 "use strict";
 
+var conversionKeys = {
+	"ArrowLeft": "Left",
+	"ArrowRight": "Right",
+	"ArrowUp": "Up",
+	"ArrowDown": "Down"
+}
+
 function KeyboardManager(options) {
 	var self = this;
 	options = options || "";
-	// Save the named key hashmap
-	this.namedKeys = namedKeys;
-	// Create a reverse mapping of code to keyname
-	this.keyNames = [];
-	$tw.utils.each(namedKeys,function(keyCode,name) {
-		self.keyNames[keyCode] = name.substr(0,1).toUpperCase() + name.substr(1);
-	});
 	// Save the platform-specific name of the "meta" key
 	this.metaKeyName = $tw.platform.isMac ? "cmd-" : "win-";
 	this.shortcutKeysList = [], // Stores the shortcut-key descriptors
@@ -43,13 +43,12 @@ Return an array of keycodes for the modifier keys ctrl, shift, alt, meta
 */
 KeyboardManager.prototype.getModifierKeys = function() {
 	return [
-		16, // Shift
-		17, // Ctrl
-		18, // Alt
-		20, // CAPS LOCK
-		91, // Meta (left)
-		93, // Meta (right)
-		224 // Meta (Firefox)
+		"Shift", // Shift
+		"Control", // Ctrl
+		"Alt", // Alt
+		"CapsLock", // CAPS LOCK
+		"Meta", // Meta (left)
+		"AltGraph" // Meta (right)
 	]
 };
 
@@ -69,7 +68,7 @@ Key descriptors have the following format:
 KeyboardManager.prototype.parseKeyDescriptor = function(keyDescriptor,options) {
 	var components = keyDescriptor.split(/\+|\-/),
 		info = {
-			keyCode: 0,
+			key: 0,
 			shiftKey: false,
 			altKey: false,
 			ctrlKey: false,
@@ -88,19 +87,34 @@ KeyboardManager.prototype.parseKeyDescriptor = function(keyDescriptor,options) {
 		} else if(s === "meta" || s === "cmd" || s === "win") {
 			info.metaKey = true;
 		}
-		// Replace named keys with their code
-		if(this.namedKeys[s]) {
-			info.keyCode = this.namedKeys[s];
-		}
 	}
+	info.key = this.getKeyComponent(info,components);
 	if(options.keyDescriptor) {
 		info.keyDescriptor = options.keyDescriptor;
 	}
-	if(info.keyCode) {
+	if(info.key) {
 		return info;
 	} else {
 		return null;
 	}
+};
+
+KeyboardManager.prototype.lowerCaseKey = function(key) {
+	return key.charAt(0).toLowerCase() + key.slice(1);
+};
+
+KeyboardManager.prototype.upperCaseKey = function(key) {
+	return key.charAt(0).toUpperCase() + key.slice(1);
+};
+
+KeyboardManager.prototype.getKeyComponent = function(info,components) {
+	var key;
+	for(var i=0; i<components.length; i++) {
+		if(!info[components[i]]) {
+			key = components[i];
+		}
+	}
+	return this.lowerCaseKey(key);
 };
 
 /*
@@ -147,19 +161,21 @@ KeyboardManager.prototype.getPrintableShortcuts = function(keyInfoArray) {
 		result = [];
 	$tw.utils.each(keyInfoArray,function(keyInfo) {
 		if(keyInfo) {
+			var key = conversionKeys[keyInfo.key] || keyInfo.key;
 			result.push((keyInfo.ctrlKey ? "ctrl-" : "") + 
-				   (keyInfo.shiftKey ? "shift-" : "") + 
-				   (keyInfo.altKey ? "alt-" : "") + 
-				   (keyInfo.metaKey ? self.metaKeyName : "") + 
-				   (self.keyNames[keyInfo.keyCode]));
+					(keyInfo.shiftKey ? "shift-" : "") + 
+					(keyInfo.altKey ? "alt-" : "") + 
+					(keyInfo.metaKey ? self.metaKeyName : "") + 
+					(self.upperCaseKey(key)));
 		}
 	});
 	return result;
 }
 
 KeyboardManager.prototype.checkKeyDescriptor = function(event,keyInfo) {
+	var key = conversionKeys[event.key] || event.key;
 	return keyInfo &&
-			event.keyCode === keyInfo.keyCode && 
+			this.lowerCaseKey(key) === keyInfo.key && 
 			event.shiftKey === keyInfo.shiftKey && 
 			event.altKey === keyInfo.altKey && 
 			event.ctrlKey === keyInfo.ctrlKey && 
@@ -221,7 +237,6 @@ KeyboardManager.prototype.handleKeydownEvent = function(event, options) {
 		if(options.onlyPriority && this.shortcutPriorityList[i] !== true) {
 			continue;
 		}
-
 		if(this.shortcutParsedList[i] !== undefined && this.checkKeyDescriptors(event,this.shortcutParsedList[i])) {
 			key = this.shortcutParsedList[i];
 			action = this.shortcutActionList[i];

@@ -2,6 +2,8 @@ title: $:/core/ui/ControlPanel/KeyboardShortcuts
 tags: $:/tags/ControlPanel
 caption: {{$:/language/ControlPanel/KeyboardShortcuts/Caption}}
 
+\rules except wikilink
+
 \define lingo-base() $:/language/ControlPanel/KeyboardShortcuts/
 
 \define new-shortcut(title)
@@ -36,7 +38,11 @@ caption: {{$:/language/ControlPanel/KeyboardShortcuts/Caption}}
 {{$:/core/images/edit-button}}
 </$button>
 &#32;
-<$macrocall $name="displayshortcuts" $output="text/html" shortcuts={{$(shortcutTitle)$}} prefix="<kbd>" separator="</kbd> <kbd>" suffix="</kbd>"/>
+<%if [{$(shortcutTitle)$}!is[blank]] %>
+<kbd>
+<$macrocall $name="displayshortcuts" $output="text/plain" shortcuts={{$(shortcutTitle)$}}/>
+</kbd>
+<% endif %>
 
 <$reveal state=<<qualify "$:/state/dropdown/$(shortcutTitle)$">> type="popup" position="below" animate="yes">
 <div class="tc-block-dropdown-wrapper">
@@ -56,7 +62,7 @@ caption: {{$:/language/ControlPanel/KeyboardShortcuts/Caption}}
 </$button>
 &#32;
 <kbd>
-<$macrocall $name="displayshortcuts" $output="text/html" shortcuts=<<shortcut>>/>
+<$macrocall $name="displayshortcuts" $output="text/plain" shortcuts=<<shortcut>>/>
 </kbd>
 </div>
 </$list>
@@ -90,7 +96,11 @@ caption: {{$:/language/ControlPanel/KeyboardShortcuts/Caption}}
 \end
 
 \define shortcut-preview()
-<$macrocall $name="displayshortcuts" $output="text/html" shortcuts={{$(shortcutPrefix)$$(shortcutName)$}} prefix="<kbd>" separator="</kbd> <kbd>" suffix="</kbd>"/>
+<%if [{$(shortcutPrefix)$$(shortcutName)$}!is[blank]] %>
+<kbd>
+<$macrocall $name="displayshortcuts" $output="text/plain" shortcuts={{$(shortcutPrefix)$$(shortcutName)$}}/>
+</kbd>
+<% endif %>
 \end
 
 \define shortcut-item-inner()

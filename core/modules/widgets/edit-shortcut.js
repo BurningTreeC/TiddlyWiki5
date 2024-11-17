@@ -102,14 +102,14 @@ Handle a dom "keydown" event
 */
 EditShortcutWidget.prototype.handleKeydownEvent = function(event) {
 	// Ignore shift, ctrl, meta, alt
-	if(event.keyCode && $tw.keyboardManager.getModifierKeys().indexOf(event.keyCode) === -1) {
+	if(event.key && $tw.keyboardManager.getModifierKeys().indexOf(event.key) === -1) {
 		// Get the shortcut text representation
 		var value = $tw.keyboardManager.getPrintableShortcuts([{
 			ctrlKey: event.ctrlKey,
 			shiftKey: event.shiftKey,
 			altKey: event.altKey,
 			metaKey: event.metaKey,
-			keyCode: event.keyCode
+			key: event.key
 		}]);
 		if(value.length > 0) {
 			this.wiki.setText(this.shortcutTiddler,this.shortcutField,this.shortcutIndex,value[0]);
