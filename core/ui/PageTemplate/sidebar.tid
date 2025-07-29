@@ -8,6 +8,18 @@ $:/config/SideBarSegments/Visibility/$(listItem)$
 
 <$scrollable fallthrough="no" class="tc-sidebar-scrollable">
 
+<$resizer
+	class="tc-sidebar-resizer"
+	direction="horizontal"
+	tiddler="$:/themes/tiddlywiki/vanilla/metrics/sidebarwidth"
+	parent-selector=".tc-page-container"
+	min="10"
+	max="90"
+	default="350px"
+	invert="yes"
+	unit="%"
+/>
+
 <div class="tc-sidebar-header">
 
 <$reveal state="$:/state/sidebar" type="match" text="yes" default="yes" retain="yes" animate="yes">

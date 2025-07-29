@@ -3576,3 +3576,38 @@ span.tc-translink > a:first-child {
 	margin-bottom: 3px;
 }
 
+.tc-sidebar-resizer {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	width: 4px;
+	cursor: ew-resize;
+	background-color: <<colour muted-foreground>>;
+	opacity: 0.5;
+	transition: opacity 0.2s ease, background-color 0.2s ease;
+	z-index: 10;
+	left: 18px;
+}
+
+.tc-sidebar-resizer:hover {
+	background-color: <<colour primary>>;
+	opacity: 0.75;
+}
+
+.tc-resizer-active {
+	background-color: <<colour primary>>;
+	opacity: 0.75;
+}
+
+@media (max-width: <<sidebar-breakpoint>>) {
+	.tc-sidebar-resizer {
+		display: none;
+	}
+}
+
+/* Disable pointer events on editor iframe during resizing */
+body.tc-resizing .tc-edit-texteditor iframe,
+body.tc-resizing .tc-tiddler-editor iframe,
+body.tc-resizing .tc-tiddler-frame iframe {
+	pointer-events: none !important;
+}

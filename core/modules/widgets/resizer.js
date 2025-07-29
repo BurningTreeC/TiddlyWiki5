@@ -129,7 +129,13 @@ ResizerWidget.prototype.addEventHandlers = function(domNode) {
 		
 		// Cache the parent size at the start of drag for percentage calculations
 		if(self.unit === "%") {
-			var parentElement = domNode.parentElement;
+			var parentElement;
+			// Use custom parent selector if provided
+			if(self.parentSelector) {
+				parentElement = self.document.querySelector(self.parentSelector);
+			} else {
+				parentElement = domNode.parentElement;
+			}
 			if(parentElement) {
 				// Use offset dimensions for relative positioning, getBoundingClientRect for absolute
 				if(self.position === "relative") {
@@ -138,7 +144,7 @@ ResizerWidget.prototype.addEventHandlers = function(domNode) {
 					var parentRect = parentElement.getBoundingClientRect();
 					parentSizeAtStart = self.direction === "horizontal" ? parentRect.width : parentRect.height;
 				}
-				console.log("Parent size at start:", parentSizeAtStart);
+				console.log("Parent size at start:", parentSizeAtStart, "from element:", self.parentSelector || "parent");
 			}
 		}
 		
@@ -294,6 +300,7 @@ ResizerWidget.prototype.execute = function() {
 	this.targetField = this.getAttribute("field", "text");
 	this.targetSelector = this.getAttribute("selector");
 	this.targetElement = this.getAttribute("element"); // parent, previousSibling, nextSibling
+	this.parentSelector = this.getAttribute("parent-selector"); // selector for parent container (for % calculations)
 	this.unit = this.getAttribute("unit", "px");
 	this.position = this.getAttribute("position", "absolute"); // absolute or relative
 	this.defaultValue = this.getAttribute("default", this.unit === "%" ? "50%" : "200px");
