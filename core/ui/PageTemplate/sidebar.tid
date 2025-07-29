@@ -8,6 +8,7 @@ $:/config/SideBarSegments/Visibility/$(listItem)$
 
 <$scrollable fallthrough="no" class="tc-sidebar-scrollable">
 
+<%if [{$:/state/sidebar}!match[no]] %>
 <$resizer
 	class="tc-sidebar-resizer"
 	direction="horizontal"
@@ -19,6 +20,7 @@ $:/config/SideBarSegments/Visibility/$(listItem)$
 	invert="yes"
 	unit="%"
 />
+<% endif %>
 
 <div class="tc-sidebar-header">
 
