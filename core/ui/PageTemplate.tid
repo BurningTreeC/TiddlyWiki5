@@ -6,6 +6,8 @@ code-body: yes
 
 \whitespace trim
 \import [subfilter{$:/core/config/GlobalImportFilter}]
+\function tf.story-river-classes() tc-story-river
+\function tf.sidebar-classes() tc-sidebar-scrollable
 
 <$vars
 	tv-config-toolbar-icons={{$:/config/Toolbar/Icons}}
@@ -35,4 +37,3 @@ code-body: yes
 </div>
 
 </$vars>
-

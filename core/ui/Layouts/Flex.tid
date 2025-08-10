@@ -1,0 +1,29 @@
+title: $:/core/ui/Layouts/Flex
+tags: $:/tags/Layout
+name: {{$:/language/Layouts/Flex/Name}}
+description: {{$:/language/Layouts/Flex/Description}}
+icon: $:/core/images/flex-layout
+code-body: yes
+
+\whitespace trim
+\import [subfilter{$:/core/config/GlobalImportFilter}]
+\function tf.story-river-classes() tc-flex-story-river [[$:/state/sidebar]get[text]else[yes]match[no]then[tc-sidebar-hidden]] +[join[ ]]
+\function tf.sidebar-classes() tc-flex-sidebar-scrollable [[$:/state/sidebar]get[text]else[yes]match[no]then[tc-sidebar-hidden]] +[join[ ]]
+<$vars
+	tv-config-toolbar-icons={{$:/config/Toolbar/Icons}}
+	tv-config-toolbar-text={{$:/config/Toolbar/Text}}
+	tv-config-toolbar-class={{$:/config/Toolbar/ButtonClass}}
+	tv-enable-drag-and-drop={{$:/config/DragAndDrop/Enable}}
+	tv-show-missing-links={{$:/config/MissingLinks}}
+	storyviewTitle={{$:/view}}
+	languageTitle={{{ [{$:/language}get[name]] }}}>
+	<div class={{{ [all[shadows+tiddlers]tag[$:/tags/ClassFilters/Flex]!is[draft]] :map:flat[subfilter{!!text}] tc-flex-container [[tc-flex-view-]addsuffix<storyviewTitle>] [[tc-language-]addsuffix<languageTitle>] :and[unique[]join[ ]] }}} >
+		<$navigator story="$:/StoryList" history="$:/HistoryList" openLinkFromInsideRiver={{$:/config/Navigation/openLinkFromInsideRiver}} openLinkFromOutsideRiver={{$:/config/Navigation/openLinkFromOutsideRiver}} relinkOnRename={{$:/config/RelinkOnRename}}>
+			<$dropzone enable=<<tv-enable-drag-and-drop>> class="tc-dropzone tc-page-container-inner">
+				<$list filter="[all[shadows+tiddlers]tag[$:/tags/PageTemplate]!is[draft]] -[[$:/core/ui/PageTemplate/toprightbar]] -[[$:/core/ui/PageTemplate/topleftbar]]" variable="listItem">
+					<$transclude $tiddler=<<listItem>>/>
+				</$list>
+			</$dropzone>
+		</$navigator>
+	</div>
+</$vars>

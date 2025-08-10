@@ -6,7 +6,7 @@ tags: $:/tags/PageTemplate
 $:/config/SideBarSegments/Visibility/$(listItem)$
 \end
 
-<$scrollable fallthrough="no" class="tc-sidebar-scrollable">
+<$scrollable fallthrough="no" class=<<tf.sidebar-classes>>>
 
 <div class="tc-sidebar-header">
 

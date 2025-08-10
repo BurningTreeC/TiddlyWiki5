@@ -1,5 +1,5 @@
 title: $:/core/ui/TopBar/menu
-tags: $:/tags/TopRightBar
+tags: $:/tags/TopRightBar $:/tags/Header/Right
 
 \whitespace trim
 <$list filter="[[$:/state/sidebar]get[text]] +[else[yes]!match[no]]" variable="ignore">
