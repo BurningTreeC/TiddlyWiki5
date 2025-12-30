@@ -1,0 +1,6 @@
+{
+	"title": "$:/plugins/tiddlywiki/editor/edit-history",
+	"name": "EditHistory",
+	"description": "Editor Plugin",
+	"list": "readme"
+}

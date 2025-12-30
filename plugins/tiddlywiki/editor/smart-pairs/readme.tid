@@ -1,0 +1,47 @@
+title: $:/plugins/tiddlywiki/editor/smart-pairs/readme
+tags: $:/tags/PluginReadme
+type: text/vnd.tiddlywiki
+
+! Smart Pairs
+
+Automatically closes brackets, quotes, and wikitext markup as you type.
+
+!! Features
+
+* ''Auto-close brackets'': `()`, `[]`, `{}`, `<>`
+* ''Auto-close quotes'': `""`, `''`, ``` `` ```
+* ''Auto-close wikitext'': `[[]]`, `{{}}`, `<<>>`, `''`, `//`, `__`, `~~`, `^^`, `,,`, ``` ``` ```
+* ''Smart backspace'': Deletes both opener and closer when empty
+* ''Tab jump'': Press Tab to jump over closing tokens
+* ''Toggle detection'': Won't double-close symmetric tokens like `''` or `//`
+
+!! Keyboard Shortcuts
+
+|!Key |!Action |
+|Any opener |Insert opener + closer, cursor between |
+|Backspace |Delete pair if cursor between empty pair |
+|Tab |Jump over next closing token |
+
+!! Configuration
+
+|!Tiddler |!Values |!Default |
+|`$:/config/Editor/EnableSmartPairs` |`yes` / `no` |`yes` |
+
+!! Widget Attribute
+
+```
+<$edit-text enableSmartPairs="yes"/>
+```
+
+!! Plugin Options
+
+The plugin can be configured programmatically:
+
+```javascript
+plugin.configure({
+    enableBrackets: true,    // ()[]{}
+    enableQuotes: true,      // "" '' ``
+    enableWikitext: true,    // [[]] {{}} etc.
+    deletePairs: true        // backspace deletes pairs
+});
+```

@@ -1,0 +1,6 @@
+{
+	"title": "$:/plugins/tiddlywiki/editor/line-block",
+	"name": "LineBlock",
+	"description": "Editor Plugin",
+	"list": "readme"
+}

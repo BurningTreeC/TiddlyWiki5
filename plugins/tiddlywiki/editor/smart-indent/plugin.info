@@ -1,0 +1,6 @@
+{
+	"title": "$:/plugins/tiddlywiki/editor/smart-indent",
+	"name": "SmartIndent",
+	"description": "Editor Plugin",
+	"list": "readme"
+}

@@ -1,0 +1,67 @@
+title: $:/plugins/tiddlywiki/editor/search-enhanced/readme
+tags: $:/tags/PluginReadme
+type: text/vnd.tiddlywiki
+
+! Search Enhanced
+
+In-editor search with highlighting and multi-cursor integration.
+
+!! Features
+
+* ''Live search'': Results highlighted as you type
+* ''Match highlighting'': All matches shown with visual overlay
+* ''Multi-cursor selection'': Select all matches as cursors
+* ''Simple UI'': Minimal search bar at editor top
+
+!! Keyboard Shortcuts
+
+|!Key |!Action |
+|Ctrl+F |Open search bar |
+|Escape |Close search bar |
+|Ctrl+Enter |Select all matches as cursors |
+
+!! Search Bar
+
+When open, shows:
+* Input field for search query
+* Hint text: "Search… (Ctrl+Enter: multi-cursor, Esc: close)"
+
+!! Match Highlighting
+
+All matches are highlighted in the editor with a distinct background color (customizable via CSS variable `--tc-editor-search-hit`).
+
+!! Multi-Cursor Integration
+
+Press `Ctrl+Enter` while search is open to:
+
+# Clear existing secondary cursors
+# Place primary cursor at first match
+# Add secondary cursors at all other matches
+# Close search bar
+
+This enables simultaneous editing of all occurrences.
+
+!! Configuration
+
+|!Tiddler |!Values |!Default |
+|`$:/config/Editor/EnableSearchEnhanced` |`yes` / `no` |`yes` |
+
+!! Widget Attribute
+
+```
+<$edit-text enableSearchEnhanced="yes"/>
+```
+
+!! CSS Variables
+
+```css
+:root {
+    --tc-editor-search-hit: rgba(255, 210, 80, 0.35);
+}
+```
+
+!! Notes
+
+* Search is case-insensitive
+* Plain text matching (not regex)
+* Works together with multi-cursor plugin

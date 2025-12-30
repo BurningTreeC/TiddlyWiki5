@@ -1,0 +1,52 @@
+title: $:/plugins/tiddlywiki/editor/line-numbers/readme
+tags: $:/tags/PluginReadme
+type: text/vnd.tiddlywiki
+
+! Line Numbers
+
+Display line numbers in the editor gutter.
+
+!! Features
+
+* ''Logical line numbers'': Shows actual line numbers (not visual/wrapped lines)
+* ''Active line highlight'': Current line number is emphasized
+* ''Focus indicator'': Line numbers change color when editor is focused
+* ''Efficient rendering'': Only visible lines are rendered (virtual scrolling)
+* ''Auto-sync'': Updates on scroll, input, and selection change
+
+!! Visual Style
+
+* Gutter appears on the left side of the editor
+* Numbers are right-aligned with tabular figures
+* Active line shown in bold
+* Focused editor shows active line in accent color
+
+!! Configuration
+
+|!Tiddler |!Values |!Default |
+|`$:/config/Editor/ShowLineNumbers` |`yes` / `no` |`yes` |
+
+!! Widget Attribute
+
+```
+<$edit-text showLineNumbers="yes"/>
+```
+
+!! CSS Variables
+
+Customize appearance via CSS variables:
+
+```css
+:root {
+    --tc-editor-gutter-bg: rgba(0,0,0,0.03);
+    --tc-editor-gutter-fg: rgba(0,0,0,0.55);
+    --tc-editor-gutter-fg-active: rgba(0,0,0,0.85);
+    --tc-editor-gutter-border: rgba(0,0,0,0.12);
+}
+```
+
+!! Notes
+
+* Line numbers match logical lines (split by newline characters)
+* Long wrapped lines still show a single line number
+* Performance optimized for large documents

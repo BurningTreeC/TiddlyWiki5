@@ -3,16 +3,18 @@ title: $:/core/modules/editor/factory.js
 type: application/javascript
 module-type: library
 
-Factory for constructing text editor widgets with specified engines for the toolbar and non-toolbar cases
+Factory for constructing text editor widgets with specified engines for the toolbar and non-toolbar cases.
+Extended with dynamic plugin configuration - plugins declare their own config tiddlers.
 
 \*/
 
 "use strict";
 
-var DEFAULT_MIN_TEXT_AREA_HEIGHT = "100px"; // Minimum height of textareas in pixels
+var DEFAULT_MIN_TEXT_AREA_HEIGHT = "100px";
 
-// Configuration tiddlers
+// Core configuration tiddlers
 var HEIGHT_MODE_TITLE = "$:/config/TextEditor/EditorHeight/Mode";
+var HEIGHT_VALUE_TITLE = "$:/config/TextEditor/EditorHeight/Height";
 var ENABLE_TOOLBAR_TITLE = "$:/config/TextEditor/EnableToolbar";
 
 var Widget = require("$:/core/modules/widgets/widget.js").widget;
@@ -20,7 +22,6 @@ var Widget = require("$:/core/modules/widgets/widget.js").widget;
 function editTextWidgetFactory(toolbarEngine,nonToolbarEngine) {
 
 	var EditTextWidget = function(parseTreeNode,options) {
-		// Initialise the editor operations if they've not been done already
 		if(!this.editorOperations) {
 			EditTextWidget.prototype.editorOperations = {};
 			$tw.modules.applyMethods("texteditoroperation",this.editorOperations);
@@ -28,22 +29,40 @@ function editTextWidgetFactory(toolbarEngine,nonToolbarEngine) {
 		this.initialise(parseTreeNode,options);
 	};
 
-	/*
-	Inherit from the base widget class
-	*/
 	EditTextWidget.prototype = new Widget();
 
-	/*
-	Render this widget into the DOM
-	*/
+	// --- helpers -------------------------------------------------------
+
+	EditTextWidget.prototype._isYes = function(value) {
+		return value === "yes" || value === "true";
+	};
+
+	EditTextWidget.prototype._getConfigTextAny = function(titles, defValue) {
+		for(var i = 0; i < titles.length; i++) {
+			var t = titles[i];
+			var v = this.wiki.getTiddlerText(t);
+			if(v !== undefined && v !== null && v !== "") return v;
+		}
+		return defValue;
+	};
+
+	EditTextWidget.prototype._getBoolFromTiddlers = function(configTitles, defYesNo) {
+		var v = this._getConfigTextAny(configTitles, defYesNo);
+		return this._isYes(v) ? "yes" : "no";
+	};
+
+	EditTextWidget.prototype._safeGetPlugin = function(name) {
+		if(this.engine && this.engine.getPlugin) return this.engine.getPlugin(name);
+		return null;
+	};
+
+	// --- render --------------------------------------------------------
+
 	EditTextWidget.prototype.render = function(parent,nextSibling) {
-		// Save the parent dom node
 		this.parentDomNode = parent;
-		// Compute our attributes
 		this.computeAttributes();
-		// Execute our logic
 		this.execute();
-		// Create the wrapper for the toolbar and render its content
+
 		if(this.editShowToolbar) {
 			this.toolbarNode = this.document.createElement("div");
 			this.toolbarNode.className = "tc-editor-toolbar";
@@ -51,41 +70,119 @@ function editTextWidgetFactory(toolbarEngine,nonToolbarEngine) {
 			this.renderChildren(this.toolbarNode,null);
 			this.domNodes.push(this.toolbarNode);
 		}
-		// Create our element
+
 		var editInfo = this.getEditInfo(),
 			Engine = this.editShowToolbar ? toolbarEngine : nonToolbarEngine;
+
 		this.engine = new Engine({
-				widget: this,
-				value: editInfo.value,
-				type: editInfo.type,
-				parentNode: parent,
-				nextSibling: nextSibling
-			});
-		// Call the postRender hook
-		if(this.postRender) {
-			this.postRender();
-		}
-		// Fix height
+			widget: this,
+			value: editInfo.value,
+			type: editInfo.type,
+			parentNode: parent,
+			nextSibling: nextSibling
+		});
+
+		// Enable plugins based on configuration (after engine is created)
+		this.enablePluginsFromConfig();
+
+		// Configure plugins with detailed options
+		this.configurePlugins();
+
+		if(this.postRender) this.postRender();
+
 		this.engine.fixHeight();
-		// Focus if required
-		if($tw.browser && (this.editFocus === "true" || this.editFocus === "yes") && !$tw.utils.hasClass(this.parentDomNode.ownerDocument.activeElement,"tc-keep-focus")) {
+
+		if($tw.browser &&
+			(this.editFocus === "true" || this.editFocus === "yes") &&
+			!$tw.utils.hasClass(this.parentDomNode.ownerDocument.activeElement,"tc-keep-focus")) {
 			this.engine.focus();
 		}
-		// Add widget message listeners
+
 		this.addEventListeners([
-			{type: "tm-edit-text-operation", handler: "handleEditTextOperationMessage"}
+			{type: "tm-edit-text-operation", handler: "handleEditTextOperationMessage"},
+			{type: "tm-editor-undo", handler: "handleUndoMessage"},
+			{type: "tm-editor-redo", handler: "handleRedoMessage"},
+			{type: "tm-editor-toggle-vim", handler: "handleToggleVimMessage"},
+			{type: "tm-editor-toggle-preview", handler: "handleTogglePreviewMessage"},
+			{type: "tm-editor-toggle-search", handler: "handleToggleSearchMessage"},
+			{type: "tm-editor-command-palette", handler: "handleCommandPaletteMessage"}
 		]);
 	};
 
-	/*
-	Get the tiddler being edited and current value
-	*/
+	/**
+	 * Read plugin enable/disable config and apply it.
+	 * Uses plugin metadata to find config tiddlers.
+	 */
+	EditTextWidget.prototype.enablePluginsFromConfig = function() {
+		if(!this.engine || !this.engine.enablePluginsByConfig) return;
+
+		var pluginMeta = this.engine.getPluginMetadata();
+		var enabledMap = {};
+
+		for(var name in pluginMeta) {
+			var meta = pluginMeta[name];
+			var attrName = "enable" + this._capitalizeFirst(name).replace(/-([a-z])/g, function(m, c) { return c.toUpperCase(); });
+			var attrValue = this.getAttribute(attrName);
+
+			var configTitles = [];
+			if(meta.configTiddler) configTitles.push(meta.configTiddler);
+			if(meta.configTiddlerAlt) configTitles.push(meta.configTiddlerAlt);
+
+			var defaultValue = meta.defaultEnabled ? "yes" : "no";
+
+			if(attrValue !== undefined) {
+				// Attribute overrides config
+				enabledMap[name] = this._isYes(attrValue) ? "yes" : "no";
+			} else if(configTitles.length > 0) {
+				// Use config tiddler
+				enabledMap[name] = this._getBoolFromTiddlers(configTitles, defaultValue);
+			} else {
+				// Use default
+				enabledMap[name] = defaultValue;
+			}
+		}
+
+		this.engine.enablePluginsByConfig(enabledMap);
+	};
+
+	/**
+	 * Capitalize first letter of a string
+	 */
+	EditTextWidget.prototype._capitalizeFirst = function(s) {
+		if(!s) return s;
+		return s.charAt(0).toUpperCase() + s.slice(1);
+	};
+
+	/**
+	 * Configure plugins with detailed options (if plugin supports configure()).
+	 */
+	EditTextWidget.prototype.configurePlugins = function() {
+		if(!this.engine) return;
+
+		// Smart-pairs configuration
+		this.engine.configurePlugin("smart-pairs", {
+			enableBrackets: this.getAttribute("smartPairsBrackets") !== "no",
+			enableQuotes: this.getAttribute("smartPairsQuotes") !== "no",
+			enableWikitext: this.getAttribute("smartPairsWikitext") !== "no",
+			deletePairs: this.getAttribute("smartPairsDeletePairs") !== "no"
+		});
+
+		// Folding configuration
+		this.engine.configurePlugin("folding", {
+			enabledByDefault: this.getAttribute("foldingDefault") === "yes",
+			minFoldLines: $tw.utils.parseNumber(this.getAttribute("foldingMinLines") || "3"),
+			foldMarker: this.getAttribute("foldingMarker") || "…"
+		});
+	};
+
+	// --- edit info -----------------------------------------------------
+
 	EditTextWidget.prototype.getEditInfo = function() {
-		// Get the edit value
 		var self = this,
 			value,
 			type = "text/plain",
 			update;
+
 		if(this.editIndex) {
 			value = this.wiki.extractTiddlerDataItem(this.editTitle,this.editIndex,this.editDefault);
 			update = function(value) {
@@ -96,74 +193,87 @@ function editTextWidgetFactory(toolbarEngine,nonToolbarEngine) {
 				}
 			};
 		} else {
-			// Get the current tiddler and the field name
 			var tiddler = this.wiki.getTiddler(this.editTitle);
 			if(tiddler) {
-				// If we've got a tiddler, the value to display is the field string value
-				if(tiddler.hasField(this.editField)) {
-					value = tiddler.getFieldString(this.editField);
-				} else {
-					value = this.editDefault || "";
-				}
-				if(this.editField === "text") {
-					type = tiddler.fields.type || "text/vnd.tiddlywiki";
-				}
+				if(tiddler.hasField(this.editField)) value = tiddler.getFieldString(this.editField);
+				else value = this.editDefault || "";
+				if(this.editField === "text") type = tiddler.fields.type || "text/vnd.tiddlywiki";
 			} else {
-				// Otherwise, we need to construct a default value for the editor
 				switch(this.editField) {
-					case "text":
-						value = "";
-						type = "text/vnd.tiddlywiki";
-						break;
-					case "title":
-						value = this.editTitle;
-						break;
-					default:
-						value = "";
-						break;
+					case "text": value = ""; type = "text/vnd.tiddlywiki"; break;
+					case "title": value = this.editTitle; break;
+					default: value = ""; break;
 				}
-				if(this.editDefault !== undefined) {
-					value = this.editDefault;
-				}
+				if(this.editDefault !== undefined) value = this.editDefault;
 			}
 			update = function(value) {
 				var tiddler = self.wiki.getTiddler(self.editTitle),
-					updateFields = {
-						title: self.editTitle
-					};
+					updateFields = { title: self.editTitle };
 				updateFields[self.editField] = value;
-				self.wiki.addTiddler(new $tw.Tiddler(self.wiki.getCreationFields(),tiddler,updateFields,self.wiki.getModificationFields()));
+				self.wiki.addTiddler(new $tw.Tiddler(
+					self.wiki.getCreationFields(),
+					tiddler,
+					updateFields,
+					self.wiki.getModificationFields()
+				));
 			};
 		}
-		if(this.editType) {
-			type = this.editType;
-		}
+
+		if(this.editType) type = this.editType;
 		return {value: value || "", type: type, update: update};
 	};
 
-	/*
-	Handle an edit text operation message from the toolbar
-	*/
+	// --- messages ------------------------------------------------------
+
 	EditTextWidget.prototype.handleEditTextOperationMessage = function(event) {
-		// Prepare information about the operation
 		var operation = this.engine.createTextOperation();
-		// Invoke the handler for the selected operation
 		var handler = this.editorOperations[event.param];
-		if(handler) {
-			handler.call(this,event,operation);
-		}
-		// Execute the operation via the engine
+		if(handler) handler.call(this,event,operation);
 		var newText = this.engine.executeTextOperation(operation);
-		// Fix the tiddler height and save changes
 		this.engine.fixHeight();
 		this.saveChanges(newText);
+		// Refocus editor after toolbar button clicks (without changing selection)
+		if(this.engine.refocus) this.engine.refocus();
 	};
 
-	/*
-	Compute the internal state of the widget
-	*/
+	EditTextWidget.prototype.handleUndoMessage = function(event) {
+		if(this.engine.undo) this.engine.undo();
+		return false;
+	};
+
+	EditTextWidget.prototype.handleRedoMessage = function(event) {
+		if(this.engine.redo) this.engine.redo();
+		return false;
+	};
+
+	EditTextWidget.prototype.handleToggleVimMessage = function(event) {
+		var vim = this._safeGetPlugin("vim-mode");
+		if(vim) (vim.enabled ? vim.disable() : vim.enable());
+		return false;
+	};
+
+	EditTextWidget.prototype.handleTogglePreviewMessage = function(event) {
+		var preview = this._safeGetPlugin("inline-preview");
+		if(preview) (preview.active ? preview.deactivate() : preview.activate());
+		return false;
+	};
+
+	EditTextWidget.prototype.handleToggleSearchMessage = function(event) {
+		var search = this._safeGetPlugin("search");
+		if(search && search.toggle) search.toggle();
+		return false;
+	};
+
+	EditTextWidget.prototype.handleCommandPaletteMessage = function(event) {
+		var pal = this._safeGetPlugin("command-palette");
+		if(pal && pal.open) pal.open();
+		return false;
+	};
+
+	// --- execute (attributes) -----------------------------------------
+
 	EditTextWidget.prototype.execute = function() {
-		// Get our parameters
+		// Base
 		this.editTitle = this.getAttribute("tiddler",this.getVariable("currentTiddler"));
 		this.editField = this.getAttribute("field","text");
 		this.editIndex = this.getAttribute("index");
@@ -172,144 +282,231 @@ function editTextWidgetFactory(toolbarEngine,nonToolbarEngine) {
 		this.editPlaceholder = this.getAttribute("placeholder");
 		this.editSize = this.getAttribute("size");
 		this.editRows = this.getAttribute("rows");
-		this.editAutoHeight = this.wiki.getTiddlerText(HEIGHT_MODE_TITLE,"auto");
-		this.editAutoHeight = this.getAttribute("autoHeight",this.editAutoHeight === "auto" ? "yes" : "no") === "yes";
+
+		// Height behavior
+		var heightMode = this.wiki.getTiddlerText(HEIGHT_MODE_TITLE,"auto");
+		this.editAutoHeight = this._isYes(this.getAttribute("autoHeight", heightMode === "auto" ? "yes" : "no")) ? true : false;
 		this.editMinHeight = this.getAttribute("minHeight",DEFAULT_MIN_TEXT_AREA_HEIGHT);
+
+		// Focus/UX
 		this.editFocusPopup = this.getAttribute("focusPopup");
 		this.editFocus = this.getAttribute("focus");
 		this.editFocusSelectFromStart = $tw.utils.parseNumber(this.getAttribute("focusSelectFromStart","0"));
 		this.editFocusSelectFromEnd = $tw.utils.parseNumber(this.getAttribute("focusSelectFromEnd","0"));
 		this.editTabIndex = this.getAttribute("tabindex");
-		this.editCancelPopups = this.getAttribute("cancelPopups","") === "yes";
+		this.editCancelPopups = this._isYes(this.getAttribute("cancelPopups","no")) ? true : false;
+
+		// Actions
 		this.editInputActions = this.getAttribute("inputActions");
 		this.editRefreshTitle = this.getAttribute("refreshTitle");
+
+		// Browser input attributes (pass-through; engine decides what to do)
 		this.editAutoComplete = this.getAttribute("autocomplete");
+		this.editSpellcheck = this.getAttribute("spellcheck");            // yes/no
+		this.editWrap = this.getAttribute("wrap");                        // soft/hard/off
+		this.editAutoCorrect = this.getAttribute("autocorrect");          // on/off
+		this.editAutoCapitalize = this.getAttribute("autocapitalize");    // on/off/sentences/words/characters
+		this.editInputMode = this.getAttribute("inputmode");              // text/search/email/...
+		this.editEnterKeyHint = this.getAttribute("enterkeyhint");        // done/go/next/search/send
+		this.editName = this.getAttribute("name");
+		this.editDir = this.getAttribute("dir");                          // auto/ltr/rtl
+		this.editLang = this.getAttribute("lang");
+		this.editAriaLabel = this.getAttribute("ariaLabel");
+		this.editAriaDescription = this.getAttribute("ariaDescription");
+		this.editReadOnly = this.getAttribute("readonly","no");           // yes/no
+
+		// Disabled / filedrop
 		this.isDisabled = this.getAttribute("disabled","no");
-		this.isFileDropEnabled = this.getAttribute("fileDrop","no") === "yes";
-		// Get the default editor element tag and type
+		this.isFileDropEnabled = this._isYes(this.getAttribute("fileDrop","no"));
+
+		// Determine default edit tag/type
 		var tag,type;
 		if(this.editField === "text") {
 			tag = "textarea";
 		} else {
 			tag = "input";
 			var fieldModule = $tw.Tiddler.fieldModules[this.editField];
-			if(fieldModule && fieldModule.editTag) {
-				tag = fieldModule.editTag;
-			}
-			if(fieldModule && fieldModule.editType) {
-				type = fieldModule.editType;
-			}
+			if(fieldModule && fieldModule.editTag) tag = fieldModule.editTag;
+			if(fieldModule && fieldModule.editType) type = fieldModule.editType;
 			type = type || "text";
 		}
-		// Get the rest of our parameters
 		this.editTag = this.getAttribute("tag",tag) || "input";
 		this.editType = this.getAttribute("type",type);
-		// Make the child widgets
+
+		// Children (toolbar)
 		this.makeChildWidgets();
-		// Determine whether to show the toolbar
+
+		// Toolbar visibility
 		this.editShowToolbar = this.wiki.getTiddlerText(ENABLE_TOOLBAR_TITLE,"yes");
-		this.editShowToolbar = (this.editShowToolbar === "yes") && !!(this.children && this.children.length > 0) && (!this.document.isTiddlyWikiFakeDom);
+		this.editShowToolbar = (this.editShowToolbar === "yes") &&
+			!!(this.children && this.children.length > 0) &&
+			(!this.document.isTiddlyWikiFakeDom);
 	};
 
-	/*
-	Selectively refreshes the widget if needed. Returns true if the widget or any of its children needed re-rendering
-	*/
+	// --- refresh -------------------------------------------------------
+
+	/**
+	 * Build list of config tiddlers to watch for refresh.
+	 * Includes core config + all plugin config tiddlers.
+	 */
+	EditTextWidget.prototype._getRefreshTiddlers = function() {
+		var tiddlers = [
+			HEIGHT_MODE_TITLE,
+			HEIGHT_VALUE_TITLE,
+			ENABLE_TOOLBAR_TITLE,
+			"$:/palette"
+		];
+
+		// Add plugin config tiddlers if engine exists
+		if(this.engine && this.engine.getPluginConfigTiddlers) {
+			var pluginTiddlers = this.engine.getPluginConfigTiddlers();
+			tiddlers = tiddlers.concat(pluginTiddlers);
+		}
+
+		return tiddlers;
+	};
+
 	EditTextWidget.prototype.refresh = function(changedTiddlers) {
 		var changedAttributes = this.computeAttributes();
-		// Completely rerender if any of our attributes have changed
-		if(changedAttributes.tiddler || changedAttributes.field || changedAttributes.index || changedAttributes["default"] || changedAttributes["class"] || changedAttributes.placeholder || changedAttributes.size || changedAttributes.autoHeight || changedAttributes.minHeight || changedAttributes.focusPopup ||  changedAttributes.rows || changedAttributes.tabindex || changedAttributes.cancelPopups || changedAttributes.inputActions || changedAttributes.refreshTitle || changedAttributes.autocomplete || changedTiddlers[HEIGHT_MODE_TITLE] || changedTiddlers[ENABLE_TOOLBAR_TITLE] || changedTiddlers["$:/palette"] || changedAttributes.disabled || changedAttributes.fileDrop) {
+
+		// Check for attribute changes that require full refresh
+		if(changedAttributes.tiddler ||
+			changedAttributes.field ||
+			changedAttributes.index ||
+			changedAttributes["default"] ||
+			changedAttributes["class"] ||
+			changedAttributes.placeholder ||
+			changedAttributes.size ||
+			changedAttributes.autoHeight ||
+			changedAttributes.minHeight ||
+			changedAttributes.focusPopup ||
+			changedAttributes.rows ||
+			changedAttributes.tabindex ||
+			changedAttributes.cancelPopups ||
+			changedAttributes.inputActions ||
+			changedAttributes.refreshTitle ||
+			changedAttributes.autocomplete ||
+			changedAttributes.disabled ||
+			changedAttributes.fileDrop ||
+			changedAttributes.tag ||
+			changedAttributes.type ||
+			changedAttributes.spellcheck ||
+			changedAttributes.wrap ||
+			changedAttributes.autocorrect ||
+			changedAttributes.autocapitalize ||
+			changedAttributes.inputmode ||
+			changedAttributes.enterkeyhint ||
+			changedAttributes.name ||
+			changedAttributes.dir ||
+			changedAttributes.lang ||
+			changedAttributes.ariaLabel ||
+			changedAttributes.ariaDescription ||
+			changedAttributes.readonly) {
 			this.refreshSelf();
 			return true;
-		} else if (changedTiddlers[this.editRefreshTitle]) {
+		}
+
+		// Check if any plugin enable attribute changed
+		var pluginEnableAttrsChanged = this._checkPluginEnableAttributesChanged(changedAttributes);
+		if(pluginEnableAttrsChanged) {
+			this.refreshSelf();
+			return true;
+		}
+
+		// Check if any watched config tiddlers changed
+		var refreshTiddlers = this._getRefreshTiddlers();
+		for(var i = 0; i < refreshTiddlers.length; i++) {
+			if(changedTiddlers[refreshTiddlers[i]]) {
+				this.refreshSelf();
+				return true;
+			}
+		}
+
+		// Handle content updates without full refresh
+		if(changedTiddlers[this.editRefreshTitle]) {
 			this.engine.updateDomNodeText(this.getEditInfo().value);
 		} else if(changedTiddlers[this.editTitle]) {
 			var editInfo = this.getEditInfo();
 			this.updateEditor(editInfo.value,editInfo.type);
 		}
+
 		this.engine.fixHeight();
-		if(this.editShowToolbar) {
-			return this.refreshChildren(changedTiddlers);
-		} else {
-			return false;
+		return this.editShowToolbar ? this.refreshChildren(changedTiddlers) : false;
+	};
+
+	/**
+	 * Check if any plugin enable/disable attributes changed.
+	 */
+	EditTextWidget.prototype._checkPluginEnableAttributesChanged = function(changedAttributes) {
+		if(!this.engine || !this.engine.getPluginMetadata) return false;
+
+		var pluginMeta = this.engine.getPluginMetadata();
+		for(var name in pluginMeta) {
+			// Convert plugin name to attribute name (e.g., "smart-pairs" -> "enableSmartPairs")
+			var attrName = "enable" + this._capitalizeFirst(name).replace(/-([a-z])/g, function(m, c) { return c.toUpperCase(); });
+			if(changedAttributes[attrName]) {
+				return true;
+			}
 		}
+		return false;
 	};
 
-	/*
-	Update the editor with new text. This method is separate from updateEditorDomNode()
-	so that subclasses can override updateEditor() and still use updateEditorDomNode()
-	*/
-	EditTextWidget.prototype.updateEditor = function(text,type) {
-		this.updateEditorDomNode(text,type);
+	// --- cleanup -------------------------------------------------------
+
+	EditTextWidget.prototype.removeChildDomNodes = function() {
+		if(this.engine && this.engine.destroy) this.engine.destroy();
+		Widget.prototype.removeChildDomNodes.call(this);
 	};
 
-	/*
-	Update the editor dom node with new text
-	*/
-	EditTextWidget.prototype.updateEditorDomNode = function(text,type) {
-		this.engine.setText(text,type);
-	};
+	// --- update/save ---------------------------------------------------
 
-	/*
-	Save changes back to the tiddler store
-	*/
+	EditTextWidget.prototype.updateEditor = function(text,type) { this.updateEditorDomNode(text,type); };
+	EditTextWidget.prototype.updateEditorDomNode = function(text,type) { this.engine.setText(text,type); };
+
 	EditTextWidget.prototype.saveChanges = function(text) {
 		var editInfo = this.getEditInfo();
-		if(text !== editInfo.value) {
-			editInfo.update(text);
-		}
+		if(text !== editInfo.value) editInfo.update(text);
 	};
 
-	/*
-	Handle a dom "keydown" event, which we'll bubble up to our container for the keyboard widgets benefit
-	*/
+	// --- key propagation (unchanged) ----------------------------------
+
 	EditTextWidget.prototype.handleKeydownEvent = function(event) {
-		// Check for a keyboard shortcut
 		if(this.toolbarNode) {
 			var shortcutElements = this.toolbarNode.querySelectorAll("[data-tw-keyboard-shortcut]");
 			for(var index=0; index<shortcutElements.length; index++) {
 				var el = shortcutElements[index],
 					shortcutData = el.getAttribute("data-tw-keyboard-shortcut"),
-					keyInfoArray = $tw.keyboardManager.parseKeyDescriptors(shortcutData,{
-						wiki: this.wiki
-					});
+					keyInfoArray = $tw.keyboardManager.parseKeyDescriptors(shortcutData,{ wiki: this.wiki });
 				if($tw.keyboardManager.checkKeyDescriptors(event,keyInfoArray)) {
 					var clickEvent = this.document.createEvent("Events");
-				    clickEvent.initEvent("click",true,false);
-				    el.dispatchEvent(clickEvent);
+					clickEvent.initEvent("click",true,false);
+					el.dispatchEvent(clickEvent);
 					event.preventDefault();
 					event.stopPropagation();
 					return true;
 				}
 			}
 		}
-		// Propogate the event to the container
 		if(this.propogateKeydownEvent(event)) {
-			// Ignore the keydown if it was already handled
 			event.preventDefault();
 			event.stopPropagation();
 			return true;
 		}
-		// Otherwise, process the keydown normally
 		return false;
 	};
 
-	/*
-	Propogate keydown events to our container for the keyboard widgets benefit
-	*/
 	EditTextWidget.prototype.propogateKeydownEvent = function(event) {
 		var newEvent = this.cloneEvent(event,["keyCode","code","which","key","metaKey","ctrlKey","altKey","shiftKey"]);
 		return !this.parentDomNode.dispatchEvent(newEvent);
 	};
 
 	EditTextWidget.prototype.cloneEvent = function(event,propertiesToCopy) {
-		var propertiesToCopy = propertiesToCopy || [],
-			newEvent = this.document.createEventObject ? this.document.createEventObject() : this.document.createEvent("Events");
-		if(newEvent.initEvent) {
-			newEvent.initEvent(event.type, true, true);
-		}
-		$tw.utils.each(propertiesToCopy,function(prop){
-			newEvent[prop] = event[prop];
-		});
+		propertiesToCopy = propertiesToCopy || [];
+		var newEvent = this.document.createEventObject ?
+			this.document.createEventObject() :
+			this.document.createEvent("Events");
+		if(newEvent.initEvent) newEvent.initEvent(event.type, true, true);
+		$tw.utils.each(propertiesToCopy,function(prop){ newEvent[prop] = event[prop]; });
 		return newEvent;
 	};
 
@@ -318,16 +515,14 @@ function editTextWidgetFactory(toolbarEngine,nonToolbarEngine) {
 		return dispatchNode.dispatchEvent(newEvent);
 	};
 
-	/*
-	Propogate drag and drop events with File data to our container for the dropzone widgets benefit.
-	If there are no Files, let the browser handle it.
-	*/
+	// --- file drop plumbing (unchanged) --------------------------------
+
 	EditTextWidget.prototype.handleDropEvent = function(event) {
 		if($tw.utils.dragEventContainsFiles(event)) {
 			event.preventDefault();
 			event.stopPropagation();
 			this.dispatchDOMEvent(this.cloneEvent(event,["dataTransfer"]));
-		} 
+		}
 	};
 
 	EditTextWidget.prototype.handlePasteEvent = function(event) {
@@ -340,8 +535,7 @@ function editTextWidgetFactory(toolbarEngine,nonToolbarEngine) {
 
 	EditTextWidget.prototype.handleDragEnterEvent = function(event) {
 		if($tw.utils.dragEventContainsFiles(event)) {
-			// Ignore excessive events fired by FF when entering and leaving text nodes in a text area.
-			if( event.relatedTarget && (event.relatedTarget.nodeType === 3 || event.target === event.relatedTarget)) {
+			if(event.relatedTarget && (event.relatedTarget.nodeType === 3 || event.target === event.relatedTarget)) {
 				return true;
 			}
 			event.preventDefault();
@@ -352,10 +546,7 @@ function editTextWidgetFactory(toolbarEngine,nonToolbarEngine) {
 
 	EditTextWidget.prototype.handleDragOverEvent = function(event) {
 		if($tw.utils.dragEventContainsFiles(event)) {
-			// Call preventDefault() in browsers that default to not allowing drop events on textarea
-			if($tw.browser.isFirefox || $tw.browser.isIE) {
-				event.preventDefault();
-			}
+			if($tw.browser.isFirefox || $tw.browser.isIE) event.preventDefault();
 			event.dataTransfer.dropEffect = "copy";
 			return this.dispatchDOMEvent(this.cloneEvent(event,["dataTransfer"]));
 		}
@@ -363,7 +554,6 @@ function editTextWidgetFactory(toolbarEngine,nonToolbarEngine) {
 	};
 
 	EditTextWidget.prototype.handleDragLeaveEvent = function(event) {
-		// Ignore excessive events fired by FF when entering and leaving text nodes in a text area.
 		if(event.relatedTarget && ((event.relatedTarget.nodeType === 3) || (event.target === event.relatedTarget))) {
 			return true;
 		}

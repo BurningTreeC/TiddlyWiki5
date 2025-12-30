@@ -3,48 +3,87 @@ title: $:/core/modules/editor/operations/text/prefix-lines.js
 type: application/javascript
 module-type: texteditoroperation
 
-Text editor operation to add a prefix to the selected lines
+Text editor operation to prefix all selected lines
+Supports multiple cursors/selections
 
 \*/
 
 "use strict";
 
-exports["prefix-lines"] = function(event,operation) {
-	var targetCount = parseInt(event.paramObject.count + "",10);
-	// Cut just past the preceding line break, or the start of the text
-	operation.cutStart = $tw.utils.findPrecedingLineBreak(operation.text,operation.selStart);
-	// Cut to just past the following line break, or to the end of the text
-	operation.cutEnd = $tw.utils.findFollowingLineBreak(operation.text,operation.selEnd);
-	// Compose the required prefix
-	var prefix = $tw.utils.repeat(event.paramObject.character,targetCount);
-	// Process each line
-	var lines = operation.text.substring(operation.cutStart,operation.cutEnd).split(/\r?\n/mg);
-	$tw.utils.each(lines,function(line,index) {
-		// Remove and count any existing prefix characters
-		var count = 0;
-		while($tw.utils.startsWith(line,event.paramObject.character)) {
-			line = line.substring(event.paramObject.character.length);
-			count++;
-		}
-		// Remove any whitespace
-		while(line.charAt(0) === " ") {
-			line = line.substring(1);
-		}
-		// We're done if we removed the exact required prefix, otherwise add it
-		if(count !== targetCount) {
-			// Apply the prefix
-			line =  prefix + " " + line;
-		}
-		// Save the modified line
-		lines[index] = line;
+function getParams(event) {
+	var p = (event && event.paramObject) ? event.paramObject : {};
+	return {
+		prefix: (p.prefix !== undefined) ? String(p.prefix) : "",
+		character: (p.character !== undefined) ? String(p.character) : ""
+	};
+}
+
+function processOperation(op, params, sharedText) {
+	// Normalize
+	op.text = (typeof op.text === "string") ? op.text : (sharedText || "");
+	op.selStart = op.selStart || 0;
+	op.selEnd = op.selEnd || op.selStart;
+	
+	var text = op.text;
+	var prefix = params.prefix || params.character || "";
+	
+	if(!prefix) return;
+	
+	// Find line boundaries
+	var lineStart = text.lastIndexOf("\n", op.selStart - 1) + 1;
+	var lineEnd = text.indexOf("\n", op.selEnd);
+	if(lineEnd === -1) lineEnd = text.length;
+	
+	// Get selected lines
+	var selectedText = text.substring(lineStart, lineEnd);
+	var lines = selectedText.split("\n");
+	
+	// Check if all lines already have prefix (toggle behavior)
+	var allHavePrefix = lines.every(function(line) {
+		return line.startsWith(prefix);
 	});
-	// Stitch the replacement text together and set the selection
-	operation.replacement = lines.join("\n");
-	if(lines.length === 1) {
-		operation.newSelStart = operation.cutStart + operation.replacement.length;
-		operation.newSelEnd = operation.newSelStart;
+	
+	var newLines;
+	if(allHavePrefix) {
+		// Remove prefix
+		newLines = lines.map(function(line) {
+			return line.substring(prefix.length);
+		});
 	} else {
-		operation.newSelStart = operation.cutStart;
-		operation.newSelEnd = operation.newSelStart + operation.replacement.length;
+		// Add prefix
+		newLines = lines.map(function(line) {
+			return prefix + line;
+		});
+	}
+	
+	var replacement = newLines.join("\n");
+	var deltaPerLine = allHavePrefix ? -prefix.length : prefix.length;
+	var totalDelta = deltaPerLine * lines.length;
+	
+	op.cutStart = lineStart;
+	op.cutEnd = lineEnd;
+	op.replacement = replacement;
+	
+	// Adjust selection
+	var selStartLine = text.substring(lineStart, op.selStart).split("\n").length - 1;
+	var selEndLine = text.substring(lineStart, op.selEnd).split("\n").length - 1;
+	
+	op.newSelStart = op.selStart + (deltaPerLine * (selStartLine + 1));
+	op.newSelEnd = op.selEnd + (deltaPerLine * (selEndLine + 1));
+	
+	// Keep selection within bounds
+	op.newSelStart = Math.max(lineStart, Math.min(op.newSelStart, lineStart + replacement.length));
+	op.newSelEnd = Math.max(op.newSelStart, Math.min(op.newSelEnd, lineStart + replacement.length));
+}
+
+exports["prefix-lines"] = function(event, operation) {
+	var params = getParams(event);
+	var ops = Array.isArray(operation) ? operation : [operation];
+	var text = (ops[0] && ops[0].text) ? ops[0].text : "";
+	
+	for(var i = 0; i < ops.length; i++) {
+		if(ops[i] && typeof ops[i] === "object") {
+			processOperation(ops[i], params, text);
+		}
 	}
 };

@@ -1,0 +1,96 @@
+title: $:/plugins/tiddlywiki/editor/vim-mode/readme
+tags: $:/tags/PluginReadme
+type: text/vnd.tiddlywiki
+
+! Vim Mode
+
+Modal editing with Vim keybindings for power users.
+
+!! Modes
+
+* ''Normal'': Navigation and commands (default)
+* ''Insert'': Text input (press `i`, `a`, `o`, etc.)
+* ''Visual'': Character selection (press `v`)
+* ''Visual Line'': Line selection (press `V`)
+* ''Command'': Ex commands (press `:`)
+* ''Replace'': Overwrite mode (press `R`)
+
+!! Normal Mode Commands
+
+!!! Movement
+|!Key |!Action |
+|h/j/k/l |Left / Down / Up / Right |
+|w / W |Next word / WORD |
+|b / B |Previous word / WORD |
+|e / E |End of word / WORD |
+|0 / $ |Line start / end |
+|^ |First non-blank |
+|gg / G |Document start / end |
+|{count}G |Go to line |
+
+!!! Editing
+|!Key |!Action |
+|x |Delete character |
+|dd |Delete line |
+|D |Delete to line end |
+|cc |Change line |
+|C |Change to line end |
+|yy / Y |Yank line |
+|p / P |Paste after / before |
+|u |Undo |
+|Ctrl+R |Redo |
+|. |Repeat last command |
+
+!!! Mode Changes
+|!Key |!Action |
+|i / I |Insert before cursor / at line start |
+|a / A |Append after cursor / at line end |
+|o / O |Open line below / above |
+|v / V |Visual / Visual Line mode |
+|R |Replace mode |
+|: |Command mode |
+
+!!! Operators + Motions
+|!Key |!Action |
+|dw |Delete word |
+|d$ |Delete to line end |
+|cw |Change word |
+|yw |Yank word |
+
+!! Search
+|!Key |!Action |
+|/ |Search forward |
+|? |Search backward |
+|n / N |Next / previous match |
+|* / # |Search word under cursor forward / backward |
+
+!! Marks
+|!Key |!Action |
+|m{a-z} |Set mark |
+|'{a-z} |Jump to mark (line) |
+|`{a-z} |Jump to mark (exact) |
+
+!! Ex Commands
+|!Command |!Action |
+|:w |Save |
+|:q |Close |
+|:wq / :x |Save and close |
+|:{number} |Go to line |
+
+!! Configuration
+
+|!Tiddler |!Values |!Default |
+|`$:/config/Editor/EnableVimMode` |`yes` / `no` |`no` |
+
+!! Widget Attribute
+
+```
+<$edit-text enableVimMode="yes"/>
+```
+
+!! Notes
+
+* Press ''Escape'' to return to Normal mode from any mode
+* Mode indicator shown at bottom of editor
+* Block cursor displayed in Normal/Visual modes
+* Disables multi-cursor when active

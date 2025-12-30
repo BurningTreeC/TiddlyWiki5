@@ -1,0 +1,54 @@
+title: $:/plugins/tiddlywiki/editor/command-palette/readme
+tags: $:/tags/PluginReadme
+type: text/vnd.tiddlywiki
+
+! Command Palette
+
+Quick access to editor commands via fuzzy search.
+
+!! Features
+
+* ''Fuzzy search'': Type to filter available commands
+* ''Keyboard navigation'': Arrow keys to select, Enter to execute
+* ''Plugin toggles'': Quickly enable/disable editor plugins
+* ''Go to line'': Jump to specific line number
+
+!! Keyboard Shortcuts
+
+|!Key |!Action |
+|Ctrl+Shift+P |Open command palette |
+|Escape |Close palette |
+|Arrow Up/Down |Navigate commands |
+|Enter |Execute selected command |
+
+!! Available Commands
+
+|!Command |!Description |
+|Toggle Vim Mode |Enable/disable Vim keybindings |
+|Toggle Multi-Cursor |Enable/disable multi-cursor editing |
+|Toggle Smart Pairs |Enable/disable auto-pairing |
+|Fold Current Section |Collapse current heading section |
+|Unfold Current Section |Expand current heading section |
+|Go to Line… |Jump to specific line number |
+
+!! Configuration
+
+|!Tiddler |!Values |!Default |
+|`$:/config/Editor/EnableCommandPalette` |`yes` / `no` |`yes` |
+
+!! Widget Attribute
+
+```
+<$edit-text enableCommandPalette="yes"/>
+```
+
+!! Extending
+
+Commands can be added programmatically:
+
+```javascript
+// In your plugin's buildCommands method
+return [
+    { name: "My Command", run: function() { /* action */ } }
+];
+```

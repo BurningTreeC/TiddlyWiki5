@@ -1,0 +1,6 @@
+{
+	"title": "$:/plugins/tiddlywiki/editor/structural-selection",
+	"name": "StructuralSelection",
+	"description": "Editor Plugin",
+	"list": "readme"
+}

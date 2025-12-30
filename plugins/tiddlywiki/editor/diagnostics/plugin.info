@@ -1,0 +1,6 @@
+{
+	"title": "$:/plugins/tiddlywiki/editor/diagnostics",
+	"name": "Diagnostics",
+	"description": "Editor Plugin",
+	"list": "readme"
+}

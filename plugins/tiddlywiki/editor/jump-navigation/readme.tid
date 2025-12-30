@@ -1,0 +1,70 @@
+title: $:/plugins/tiddlywiki/editor/jump-navigation/readme
+tags: $:/tags/PluginReadme
+type: text/vnd.tiddlywiki
+
+! Jump Navigation
+
+Navigate efficiently with bracket matching, history jumps, and link opening.
+
+!! Features
+
+* ''Bracket matching'': Jump to matching bracket/parenthesis
+* ''Edit history'': Jump back/forward through recent cursor positions
+* ''Link opening'': Open TiddlyWiki link under cursor
+
+!! Keyboard Shortcuts
+
+!!! Bracket Matching
+|!Key |!Action |
+|Alt+[ |Jump to matching bracket |
+|Alt+] |Jump to matching bracket |
+
+Supported pairs: `()`, `[]`, `{}`, `<>`
+
+!!! History Navigation
+|!Key |!Action |
+|Ctrl+Alt+Left |Jump to previous cursor position |
+|Ctrl+Alt+Right |Jump to next cursor position |
+
+!!! Link Opening
+|!Key |!Action |
+|Alt+Enter |Open `[[link]]` under cursor |
+
+!! How Bracket Matching Works
+
+Place cursor on or next to a bracket:
+
+```
+function foo(|bar) {
+              ^-- cursor here
+```
+
+Press `Alt+[` or `Alt+]` to jump to the matching bracket.
+
+!! How Link Opening Works
+
+With cursor inside a link:
+
+```
+See [[My Other Tiddler|Display Text]] for details.
+         ^-- cursor anywhere here
+```
+
+Press `Alt+Enter` to navigate to "My Other Tiddler".
+
+!! Configuration
+
+|!Tiddler |!Values |!Default |
+|`$:/config/Editor/EnableJumpNavigation` |`yes` / `no` |`yes` |
+
+!! Widget Attribute
+
+```
+<$edit-text enableJumpNavigation="yes"/>
+```
+
+!! Notes
+
+* History is cleared when editor gains focus
+* Up to 100 positions are remembered
+* Link opening triggers TiddlyWiki's `tm-navigate` message

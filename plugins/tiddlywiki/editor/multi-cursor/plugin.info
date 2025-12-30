@@ -1,0 +1,6 @@
+{
+	"title": "$:/plugins/tiddlywiki/editor/multi-cursor",
+	"name": "MultiCursor",
+	"description": "Editor Plugin",
+	"list": "readme"
+}

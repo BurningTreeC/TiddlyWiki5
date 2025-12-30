@@ -1,0 +1,100 @@
+title: $:/plugins/tiddlywiki/editor/smart-indent/readme
+tags: $:/tags/PluginReadme
+type: text/vnd.tiddlywiki
+
+! Smart Indent
+
+Automatic indentation and Tab key handling.
+
+!! Features
+
+* ''Auto-indent on Enter'': New lines match previous indentation
+* ''List continuation'': Continues `*` and `#` list markers
+* ''Definition continuation'': Continues `:` definition markers
+* ''Tab indent'': Indent selected lines with Tab
+* ''Shift+Tab outdent'': Remove indentation level
+
+!! Keyboard Shortcuts
+
+|!Key |!Action |
+|Enter |New line with smart indentation |
+|Tab |Indent selection or insert tab |
+|Shift+Tab |Outdent selection |
+
+!! Auto-Indent Behavior
+
+!!! Basic Indentation
+```
+    Some indented text|
+```
+Press Enter:
+```
+    Some indented text
+    |
+```
+
+!!! List Continuation
+```
+* Item one|
+```
+Press Enter:
+```
+* Item one
+* |
+```
+
+!!! Numbered List
+```
+# First item|
+```
+Press Enter:
+```
+# First item
+# |
+```
+
+!!! Definition Lists
+```
+::: Deep definition|
+```
+Press Enter:
+```
+::: Deep definition
+:::|
+```
+
+!! Tab Indentation
+
+!!! Single Line (no selection)
+Inserts a tab character at cursor.
+
+!!! Multiple Lines (with selection)
+Adds indentation to all selected lines:
+```
+Line 1
+Line 2
+Line 3
+```
+Select all, press Tab:
+```
+	Line 1
+	Line 2
+	Line 3
+```
+
+!! Configuration
+
+|!Tiddler |!Values |!Default |
+|`$:/config/Editor/EnableSmartIndent` |`yes` / `no` |`yes` |
+
+!! Widget Attribute
+
+```
+<$edit-text enableSmartIndent="yes"/>
+```
+
+!! Notes
+
+* Default indent character is Tab
+* Code fence lines (```) don't get extra indentation
+* Works with multi-cursor editing

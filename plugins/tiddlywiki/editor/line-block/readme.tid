@@ -1,0 +1,76 @@
+title: $:/plugins/tiddlywiki/editor/line-block/readme
+tags: $:/tags/PluginReadme
+type: text/vnd.tiddlywiki
+
+! Line Block Operations
+
+Duplicate, delete, and move lines or selections.
+
+!! Features
+
+* ''Duplicate'': Copy lines or selection below
+* ''Delete'': Remove entire lines or selection
+* ''Move'': Shift lines up or down
+
+!! Keyboard Shortcuts
+
+|!Key |!Action |
+|Ctrl+Shift+D |Duplicate line(s) or selection |
+|Ctrl+Shift+K |Delete line(s) or selection |
+|Alt+Up |Move line(s) up |
+|Alt+Down |Move line(s) down |
+
+!! Behavior Details
+
+!!! Duplicate (Ctrl+Shift+D)
+* ''No selection'': Duplicates entire current line below
+* ''With selection'': Duplicates selected text immediately after selection
+
+!!! Delete (Ctrl+Shift+K)
+* ''No selection'': Deletes entire current line (including newline)
+* ''With selection'': Deletes only selected text
+
+!!! Move (Alt+Up/Down)
+* Moves all lines touched by selection
+* Maintains selection after move
+* Stops at document boundaries
+
+!! Examples
+
+!!! Duplicate Line
+```
+Line 1
+Line 2|     <- cursor here
+Line 3
+```
+After Ctrl+Shift+D:
+```
+Line 1
+Line 2
+Line 2|     <- cursor on duplicated line
+Line 3
+```
+
+!!! Move Line Up
+```
+Line 1
+Line 2|     <- cursor here
+Line 3
+```
+After Alt+Up:
+```
+Line 2|     <- line moved up
+Line 1
+Line 3
+```
+
+!! Configuration
+
+|!Tiddler |!Values |!Default |
+|`$:/config/Editor/EnableLineBlock` |`yes` / `no` |`yes` |
+
+!! Widget Attribute
+
+```
+<$edit-text enableLineBlock="yes"/>
+```

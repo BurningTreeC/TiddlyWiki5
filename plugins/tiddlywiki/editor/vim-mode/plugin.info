@@ -1,0 +1,6 @@
+{
+	"title": "$:/plugins/tiddlywiki/editor/vim-mode",
+	"name": "VimMode",
+	"description": "Editor Plugin",
+	"list": "readme"
+}

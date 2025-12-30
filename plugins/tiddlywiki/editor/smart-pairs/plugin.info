@@ -1,0 +1,6 @@
+{
+	"title": "$:/plugins/tiddlywiki/editor/smart-pairs",
+	"name": "SmartPairs",
+	"description": "Editor Plugin",
+	"list": "readme"
+}

@@ -1,0 +1,44 @@
+title: $:/plugins/tiddlywiki/editor/multi-cursor/readme
+tags: $:/tags/PluginReadme
+type: text/vnd.tiddlywiki
+
+! Multi-Cursor
+
+Edit multiple locations simultaneously with multiple cursors.
+
+!! Features
+
+* ''Add cursors'': Ctrl+Click to add cursor at click position
+* ''Select occurrences'': Select next or all occurrences of selection
+* ''Column cursors'': Add cursors above/below current position
+* ''Synchronized editing'': Type, delete, paste at all cursors simultaneously
+
+!! Keyboard Shortcuts
+
+|!Key |!Action |
+|Ctrl+Click |Add cursor at click position |
+|Ctrl+D |Select next occurrence of word/selection |
+|Ctrl+Shift+L |Select all occurrences |
+|Alt+Shift+Up |Add cursor on line above |
+|Alt+Shift+Down |Add cursor on line below |
+|Escape |Clear all secondary cursors |
+|Arrow keys |Move all cursors |
+|Ctrl+Arrow |Word-wise movement for all cursors |
+
+!! Configuration
+
+|!Tiddler |!Values |!Default |
+|`$:/config/Editor/EnableMultiCursor` |`yes` / `no` |`yes` |
+
+!! Widget Attribute
+
+```
+<$edit-text enableMultiCursor="yes"/>
+```
+
+!! Notes
+
+* Regular click clears secondary cursors
+* Shift+Click extends selection (standard behavior)
+* Overlapping cursors are automatically merged
+* Works with most editing operations

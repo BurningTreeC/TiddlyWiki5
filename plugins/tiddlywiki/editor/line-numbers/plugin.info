@@ -1,0 +1,6 @@
+{
+	"title": "$:/plugins/tiddlywiki/editor/line-numbers",
+	"name": "LineNumbers",
+	"description": "Editor Plugin",
+	"list": "readme"
+}

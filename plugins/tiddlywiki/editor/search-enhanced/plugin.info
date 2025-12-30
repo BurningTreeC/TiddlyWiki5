@@ -1,0 +1,6 @@
+{
+	"title": "$:/plugins/tiddlywiki/editor/search-enhanced",
+	"name": "SearchEnhanced",
+	"description": "Editor Plugin",
+	"list": "readme"
+}

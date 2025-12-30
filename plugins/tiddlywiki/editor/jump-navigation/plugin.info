@@ -1,0 +1,6 @@
+{
+	"title": "$:/plugins/tiddlywiki/editor/jump-navigation",
+	"name": "JumpNavigation",
+	"description": "Editor Plugin",
+	"list": "readme"
+}

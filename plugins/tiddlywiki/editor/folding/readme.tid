@@ -1,0 +1,54 @@
+title: $:/plugins/tiddlywiki/editor/folding/readme
+tags: $:/tags/PluginReadme
+type: text/vnd.tiddlywiki
+
+! Code Folding
+
+Collapse and expand sections based on headings.
+
+!! Features
+
+* ''Heading-based folding'': Fold sections defined by `!` headings
+* ''Hierarchy aware'': Sections include all content until next same-level or higher heading
+* ''Visual indicator'': Folded sections show "… (folded)" placeholder
+* ''Click to unfold'': Click the folded area to expand
+
+!! Keyboard Shortcuts
+
+|!Key |!Action |
+|Ctrl+Shift+[ |Fold current section |
+|Ctrl+Shift+] |Unfold current section |
+
+!! How Sections Work
+
+Sections are determined by TiddlyWiki headings:
+
+```
+! Heading 1
+Content here...
+
+!! Heading 2
+This is inside Heading 1's section
+
+! Another Heading 1
+This starts a new top-level section
+```
+
+Folding `! Heading 1` will hide everything until `! Another Heading 1`.
+
+!! Configuration
+
+|!Tiddler |!Values |!Default |
+|`$:/config/Editor/EnableFolding` |`yes` / `no` |`yes` |
+
+!! Widget Attribute
+
+```
+<$edit-text enableFolding="yes"/>
+```
+
+!! Notes
+
+* Fold state is not persisted between sessions
+* Cursor position is preserved when folding/unfolding
+* Folded content is still in the document, just visually hidden

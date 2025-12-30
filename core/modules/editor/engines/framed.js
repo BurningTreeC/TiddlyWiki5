@@ -15,6 +15,7 @@ Production-ready goals:
 - click/ctrl+click correctness (plugins can add cursors without losing existing ones)
 - IME/composition safety (avoid corrupting multi-cursor state)
 - decoration hygiene (optional owner-based clearing)
+- Plugin metadata system: plugins declare their own config tiddlers
 
 \*/
 
@@ -30,6 +31,7 @@ function FramedEngine(options) {
 	this.nextSibling = options.nextSibling;
 
 	this.plugins = [];
+	this.pluginMetadata = {}; // name -> {configTiddler, configTiddlerAlt, defaultEnabled, ...}
 	this.hooks = {
 		beforeInput: [],
 		afterInput: [],
@@ -383,32 +385,56 @@ FramedEngine.prototype.addEventListeners = function() {
 	}
 };
 
+// ==================== PLUGIN SYSTEM ====================
+
+/**
+ * Initialize the plugin system.
+ * Discovers all editor-plugin modules, collects their metadata,
+ * registers them, but does NOT enable them yet.
+ * Enabling happens via enablePluginsByConfig() called from the widget.
+ */
 FramedEngine.prototype.initializePlugins = function() {
 	var self = this;
 
+	// Discover and register all plugins
 	$tw.modules.forEachModuleOfType("editor-plugin", function(title, module) {
 		if(!module || !module.create) return;
+
+		// Collect metadata from module exports
+		var meta = {
+			title: title,
+			name: module.name || title.replace(/.*\//, "").replace(/\.js$/, ""),
+			configTiddler: module.configTiddler || null,
+			configTiddlerAlt: module.configTiddlerAlt || null,
+			defaultEnabled: module.defaultEnabled !== undefined ? module.defaultEnabled : false,
+			description: module.description || "",
+			category: module.category || "general"
+		};
+
 		try {
 			var plugin = module.create(self);
-			if(plugin) self.registerPlugin(plugin);
+			if(plugin) {
+				// Store metadata on the plugin instance too
+				plugin._meta = meta;
+				self.registerPlugin(plugin, meta);
+			}
 		} catch(e) {
 			console.error("Failed to create editor plugin:", title, e);
 		}
 	});
-
-	if(this.widget.editEnableSmartPairs === "yes") this.enablePlugin("smart-pairs");
-	if(this.widget.editEnableMultiCursor === "yes") this.enablePlugin("multi-cursor");
-	if(this.widget.editEnableVimMode === "yes") this.enablePlugin("vim-mode");
-	if(this.widget.editEnableInlinePreview === "yes") this.enablePlugin("inline-preview");
-
-	if(this.widget.editEnableSearch === "yes") this.enablePlugin("search");
-	if(this.widget.editEnableCommandPalette === "yes") this.enablePlugin("command-palette");
-	if(this.widget.editEnableFolding === "yes") this.enablePlugin("folding");
-	if(this.widget.editShowWhitespace === "yes") this.enablePlugin("whitespace");
 };
 
-FramedEngine.prototype.registerPlugin = function(plugin) {
+/**
+ * Register a plugin instance and its metadata.
+ */
+FramedEngine.prototype.registerPlugin = function(plugin, meta) {
 	this.plugins.push(plugin);
+
+	// Store metadata by plugin name
+	var name = (plugin && plugin.name) || (meta && meta.name);
+	if(name) {
+		this.pluginMetadata[name] = meta || {};
+	}
 
 	if(plugin.hooks) {
 		for(var hookName in plugin.hooks) {
@@ -424,10 +450,45 @@ FramedEngine.prototype.registerPlugin = function(plugin) {
 	}
 };
 
-FramedEngine.prototype.getPlugin = function(name) {
-	return this.plugins.find(function(p){ return p && p.name === name; });
+/**
+ * Get metadata for all registered plugins.
+ * Returns an object: { pluginName: {configTiddler, defaultEnabled, ...}, ... }
+ */
+FramedEngine.prototype.getPluginMetadata = function() {
+	return this.pluginMetadata;
 };
 
+/**
+ * Get list of all config tiddlers used by registered plugins.
+ * Used by factory.js to know which tiddlers to watch for refresh.
+ */
+FramedEngine.prototype.getPluginConfigTiddlers = function() {
+	var tiddlers = [];
+	for(var name in this.pluginMetadata) {
+		var meta = this.pluginMetadata[name];
+		if(meta.configTiddler) tiddlers.push(meta.configTiddler);
+		if(meta.configTiddlerAlt) tiddlers.push(meta.configTiddlerAlt);
+	}
+	return tiddlers;
+};
+
+/**
+ * Check if a plugin with the given name is registered.
+ */
+FramedEngine.prototype.hasPlugin = function(name) {
+	return this.plugins.some(function(p) { return p && p.name === name; });
+};
+
+/**
+ * Get a plugin by name. Returns null if not found.
+ */
+FramedEngine.prototype.getPlugin = function(name) {
+	return this.plugins.find(function(p){ return p && p.name === name; }) || null;
+};
+
+/**
+ * Enable a plugin by name. Only works if the plugin is registered.
+ */
 FramedEngine.prototype.enablePlugin = function(name) {
 	var plugin = this.getPlugin(name);
 	if(plugin && plugin.enable) {
@@ -436,11 +497,64 @@ FramedEngine.prototype.enablePlugin = function(name) {
 	}
 };
 
+/**
+ * Disable a plugin by name.
+ */
 FramedEngine.prototype.disablePlugin = function(name) {
 	var plugin = this.getPlugin(name);
 	if(plugin && plugin.disable) {
 		try { plugin.disable(); }
 		catch(e) { console.error("Plugin disable error:", name, e); }
+	}
+};
+
+/**
+ * Enable or disable a plugin based on a flag.
+ */
+FramedEngine.prototype.setPluginEnabled = function(name, enabled) {
+	if(enabled) {
+		this.enablePlugin(name);
+	} else {
+		this.disablePlugin(name);
+	}
+};
+
+/**
+ * Enable plugins based on configuration from widget.
+ * Called by factory.js after reading config tiddlers.
+ * @param {Object} enabledMap - { pluginName: "yes"|"no", ... }
+ */
+FramedEngine.prototype.enablePluginsByConfig = function(enabledMap) {
+	var self = this;
+	
+	// Iterate through registered plugins
+	for(var i = 0; i < this.plugins.length; i++) {
+		var plugin = this.plugins[i];
+		if(!plugin || !plugin.name) continue;
+		
+		var shouldEnable = false;
+		
+		// Check if explicitly configured
+		if(enabledMap && enabledMap[plugin.name] !== undefined) {
+			shouldEnable = (enabledMap[plugin.name] === "yes");
+		} else {
+			// Fall back to plugin's default
+			var meta = this.pluginMetadata[plugin.name];
+			shouldEnable = meta ? meta.defaultEnabled : false;
+		}
+		
+		this.setPluginEnabled(plugin.name, shouldEnable);
+	}
+};
+
+/**
+ * Configure a plugin with options. Only works if plugin has configure() method.
+ */
+FramedEngine.prototype.configurePlugin = function(name, options) {
+	var plugin = this.getPlugin(name);
+	if(plugin && plugin.configure) {
+		try { plugin.configure(options); }
+		catch(e) { console.error("Plugin configure error:", name, e); }
 	}
 };
 
@@ -460,6 +574,8 @@ FramedEngine.prototype.runHooks = function(hookName, event, data) {
 	}
 	return result;
 };
+
+// ==================== CURSOR MANAGEMENT ====================
 
 FramedEngine.prototype.getCursors = function() { return this.cursors; };
 FramedEngine.prototype.getPrimaryCursor = function() { return this.cursors.find(function(c){ return c.isPrimary; }); };
@@ -671,6 +787,8 @@ FramedEngine.prototype.getRectsForRange = function(start,end) {
 	return rects;
 };
 
+// ==================== UNDO SYSTEM ====================
+
 FramedEngine.prototype.initializeUndoSystem = function() {
 	this.undoStack = [];
 	this.redoStack = [];
@@ -778,6 +896,8 @@ FramedEngine.prototype.redo = function() {
 
 FramedEngine.prototype.canUndo = function(){ return this.undoStack.length > 0; };
 FramedEngine.prototype.canRedo = function(){ return this.redoStack.length > 0; };
+
+// ==================== TEXT OPERATIONS ====================
 
 FramedEngine.prototype.insertAtAllCursors = function(insertText) {
 	if(insertText === undefined || insertText === null) return;
@@ -889,14 +1009,26 @@ FramedEngine.prototype.createTextOperation = function() {
 	var text = this.domNode.value;
 	var ops = [];
 
+	// Ensure we have at least one cursor
+	if(!this.cursors || this.cursors.length === 0) {
+		this.cursors = [{
+			id: "primary",
+			start: this.domNode.selectionStart || 0,
+			end: this.domNode.selectionEnd || 0,
+			isPrimary: true
+		}];
+	}
+
 	var sorted = this.cursors.slice().sort(function(a,b){ return a.start - b.start; });
 	for(var i = 0; i < sorted.length; i++) {
 		var c = sorted[i];
+		var start = c.start || 0;
+		var end = c.end || start;
 		ops.push({
 			text: text,
-			selStart: c.start,
-			selEnd: c.end,
-			selection: text.substring(c.start, c.end),
+			selStart: start,
+			selEnd: end,
+			selection: text.substring(start, end),
 			cutStart: null,
 			cutEnd: null,
 			replacement: null,
@@ -907,7 +1039,9 @@ FramedEngine.prototype.createTextOperation = function() {
 		});
 	}
 
-	if(ops.length === 1) {
+	// Backward compatibility: for single cursor, also set properties on the array itself
+	// so old text operations (that do operation.selStart, operation.replacement, etc.) work
+	if(ops.length >= 1) {
 		var o = ops[0];
 		ops.text = o.text;
 		ops.selStart = o.selStart;
@@ -925,12 +1059,28 @@ FramedEngine.prototype.createTextOperation = function() {
 FramedEngine.prototype.executeTextOperation = function(operations) {
 	var opArray = Array.isArray(operations) ? operations : [operations];
 
-	if(Array.isArray(operations) && operations.length === 1 && operations.replacement !== undefined) {
-		operations[0].cutStart = operations.cutStart;
-		operations[0].cutEnd = operations.cutEnd;
-		operations[0].replacement = operations.replacement;
-		operations[0].newSelStart = operations.newSelStart;
-		operations[0].newSelEnd = operations.newSelEnd;
+	// Backward compatibility: old text operations set properties on the array itself
+	// (when operations is an array with length 1). Copy those to operations[0].
+	if(Array.isArray(operations) && operations.length === 1) {
+		var op0 = operations[0];
+		// Check if old-style properties were set on the array (not null/undefined)
+		// Old operations do: operation.replacement = "something"
+		// which sets it on the array, not on operations[0]
+		if(operations.replacement !== null && operations.replacement !== undefined) {
+			op0.replacement = operations.replacement;
+		}
+		if(operations.cutStart !== null && operations.cutStart !== undefined) {
+			op0.cutStart = operations.cutStart;
+		}
+		if(operations.cutEnd !== null && operations.cutEnd !== undefined) {
+			op0.cutEnd = operations.cutEnd;
+		}
+		if(operations.newSelStart !== null && operations.newSelStart !== undefined) {
+			op0.newSelStart = operations.newSelStart;
+		}
+		if(operations.newSelEnd !== null && operations.newSelEnd !== undefined) {
+			op0.newSelEnd = operations.newSelEnd;
+		}
 	}
 
 	var active = opArray.filter(function(op){ return op && op.replacement !== null && op.replacement !== undefined; });
@@ -953,8 +1103,11 @@ FramedEngine.prototype.executeTextOperation = function(operations) {
 	for(var i = 0; i < active.length; i++) {
 		var op = active[i];
 
-		var cutStart = Math.max(0, Math.min(op.cutStart, text.length));
-		var cutEnd = Math.max(cutStart, Math.min(op.cutEnd, text.length));
+		// Handle null/undefined cutStart/cutEnd - default to selection range
+		var cutStart = (op.cutStart !== null && op.cutStart !== undefined) ? op.cutStart : op.selStart;
+		var cutEnd = (op.cutEnd !== null && op.cutEnd !== undefined) ? op.cutEnd : op.selEnd;
+		cutStart = Math.max(0, Math.min(cutStart, text.length));
+		cutEnd = Math.max(cutStart, Math.min(cutEnd, text.length));
 		var repl = String(op.replacement);
 
 		text = text.substring(0, cutStart) + repl + text.substring(cutEnd);
@@ -1078,6 +1231,8 @@ FramedEngine.prototype.getPositionFromMouseEvent = function(event) {
 	}
 	return 0;
 };
+
+// ==================== EVENT HANDLERS ====================
 
 FramedEngine.prototype.handleCompositionStart = function(event) {
 	if(this._destroyed) return;
@@ -1355,6 +1510,11 @@ FramedEngine.prototype.focus = function() {
 	}
 };
 
+// Refocus without changing selection (for after text operations)
+FramedEngine.prototype.refocus = function() {
+	if(this.domNode && this.domNode.focus) this.domNode.focus();
+};
+
 FramedEngine.prototype.destroy = function() {
 	if(this._destroyed) return;
 	this._destroyed = true;
@@ -1371,12 +1531,15 @@ FramedEngine.prototype.destroy = function() {
 	}
 
 	this.plugins = [];
+	this.pluginMetadata = {};
 	this.hooks = {};
 	this.cursors = [];
 	this.undoStack = [];
 	this.redoStack = [];
 	this.pendingBeforeState = null;
 };
+
+// ==================== UTILITY METHODS ====================
 
 FramedEngine.prototype.getDocument = function(){ return this.iframeDoc; };
 FramedEngine.prototype.getWindow = function(){ return this.iframeNode && this.iframeNode.contentWindow; };

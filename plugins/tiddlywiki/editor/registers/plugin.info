@@ -1,0 +1,6 @@
+{
+	"title": "$:/plugins/tiddlywiki/editor/registers",
+	"name": "Registers",
+	"description": "Editor Plugin",
+	"list": "readme"
+}

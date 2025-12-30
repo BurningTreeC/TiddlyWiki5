@@ -1,0 +1,82 @@
+title: $:/plugins/tiddlywiki/editor/structural-selection/readme
+tags: $:/tags/PluginReadme
+type: text/vnd.tiddlywiki
+
+! Structural Selection
+
+Expand and shrink selection by semantic units.
+
+!! Features
+
+* ''Progressive expansion'': Select larger semantic units
+* ''Shrink back'': Return to previous selection
+* ''Structure aware'': Recognizes words, markup, lines, sections
+
+!! Keyboard Shortcuts
+
+|!Key |!Action |
+|Alt+Shift+Up |Expand selection |
+|Alt+Shift+Down |Shrink selection |
+
+!! Expansion Order
+
+Selection expands through these levels:
+
+# ''Word'': Current word under cursor
+# ''Markup'': Enclosing wikitext markup (`[[...]]`, `''...''`, etc.)
+# ''Line'': Full line(s)
+# ''Section'': Heading section (until next same-level heading)
+# ''Document'': Entire document
+
+!! Example
+
+Starting with cursor in middle of a word:
+
+```
+! My Heading
+
+This is ''some [[important|link]]'' text.
+              ^--- cursor here
+```
+
+Successive Alt+Shift+Up presses:
+
+# `important` (word)
+# `[[important|link]]` (link markup)
+# `''some [[important|link]]''` (bold markup)
+# `This is ''some [[important|link]]'' text.` (line)
+# Entire section under "! My Heading"
+# Entire document
+
+Press Alt+Shift+Down to shrink back through each level.
+
+!! Supported Markup
+
+|!Markup |!Example |
+|Links |`[[target]]`, `[[target|display]]` |
+|Transclusion |`{{tiddler}}` |
+|Macros |`<<macro>>` |
+|Bold |`''text''` |
+|Italic |`//text//` |
+|Underline |`__text__` |
+|Strikethrough |`~~text~~` |
+|Superscript |`^^text^^` |
+|Subscript |`,,text,,` |
+|Code |`` `text` `` |
+
+!! Configuration
+
+|!Tiddler |!Values |!Default |
+|`$:/config/Editor/EnableStructuralSelection` |`yes` / `no` |`yes` |
+
+!! Widget Attribute
+
+```
+<$edit-text enableStructuralSelection="yes"/>
+```
+
+!! Notes
+
+* Selection history is per-focus (cleared when editor loses focus)
+* Always finds smallest enclosing unit first
+* Section detection based on `!` headings

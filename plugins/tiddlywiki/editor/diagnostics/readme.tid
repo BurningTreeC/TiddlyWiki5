@@ -1,0 +1,55 @@
+title: $:/plugins/tiddlywiki/editor/diagnostics/readme
+tags: $:/tags/PluginReadme
+type: text/vnd.tiddlywiki
+
+! Diagnostics
+
+Real-time detection of unbalanced wikitext tokens.
+
+!! Features
+
+* ''Token balance checking'': Detects unclosed or mismatched markup
+* ''Live updates'': Checks as you type (with debounce)
+* ''Visual warning'': Shows badge with unbalanced tokens
+
+!! Checked Tokens
+
+!!! Symmetric (must appear in pairs)
+* `''` (bold)
+* `//` (italic)
+* `__` (underline)
+* `~~` (strikethrough)
+* `^^` (superscript)
+* `,,` (subscript)
+* ``` `` ` `` ``` (code)
+
+!!! Asymmetric (open/close pairs)
+* `[[` / `]]` (links)
+* `{{` / `}}` (transclusion)
+* `<<` / `>>` (macros)
+
+!! Warning Display
+
+When unbalanced tokens are detected, a warning badge appears showing which tokens are problematic:
+
+```
+⚠ '', [[]]
+```
+
+!! Configuration
+
+|!Tiddler |!Values |!Default |
+|`$:/config/Editor/EnableDiagnostics` |`yes` / `no` |`no` |
+
+!! Widget Attribute
+
+```
+<$edit-text enableDiagnostics="yes"/>
+```
+
+!! Notes
+
+* Disabled by default to avoid distraction
+* Does not fix problems, only reports them
+* Simple count-based detection (may have false positives in complex cases)
+* Updates with 200ms debounce to avoid excessive checking

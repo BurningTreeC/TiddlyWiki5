@@ -1,0 +1,58 @@
+title: $:/plugins/tiddlywiki/editor/edit-history/readme
+tags: $:/tags/PluginReadme
+type: text/vnd.tiddlywiki
+
+! Edit History
+
+Browse and restore previous editing states via periodic snapshots.
+
+!! Features
+
+* ''Automatic snapshots'': Captures state periodically while editing
+* ''Snapshot browser'': View list of snapshots with timestamps
+* ''State restoration'': Restore any previous snapshot
+* ''Selection preservation'': Restores cursor position with snapshot
+
+!! Keyboard Shortcuts
+
+|!Key |!Action |
+|Ctrl+Alt+H |Open snapshot picker |
+
+!! How It Works
+
+# Snapshots are captured automatically every 800ms during editing
+# Also captures on focus
+# Up to 50 snapshots are kept (oldest discarded)
+# Pick a snapshot to restore editor to that state
+
+!! Snapshot Picker
+
+Shows a numbered list with timestamps:
+
+```
+Pick snapshot index:
+0: 10:23:45
+1: 10:23:46
+2: 10:23:48
+...
+```
+
+Enter the index number to restore that state.
+
+!! Configuration
+
+|!Tiddler |!Values |!Default |
+|`$:/config/Editor/EnableEditHistory` |`yes` / `no` |`no` |
+
+!! Widget Attribute
+
+```
+<$edit-text enableEditHistory="yes"/>
+```
+
+!! Notes
+
+* Snapshots are per editing session (lost on close)
+* Separate from undo/redo stack
+* Useful for recovering from accidental large deletions
+* Disabled by default due to memory overhead

@@ -1,0 +1,67 @@
+title: $:/plugins/tiddlywiki/editor/registers/readme
+tags: $:/tags/PluginReadme
+type: text/vnd.tiddlywiki
+
+! Registers
+
+Vim-style named registers for multiple clipboards.
+
+!! Features
+
+* ''Named registers'': Store text in registers `a-z`
+* ''Default register'': `"` register used automatically
+* ''Multi-cursor support'': Paste works with multiple cursors
+* ''System clipboard'': Copy also writes to system clipboard
+
+!! Keyboard Shortcuts
+
+|!Key |!Action |
+|Ctrl+Alt+C |Copy selection to named register |
+|Ctrl+Alt+V |Paste from named register |
+
+!! How It Works
+
+!!! Copy to Register
+# Select text
+# Press `Ctrl+Alt+C`
+# Enter register name (a-z or ")
+# Text is stored in that register
+
+!!! Paste from Register
+# Press `Ctrl+Alt+V`
+# Enter register name (a-z or ")
+# Text from register is inserted
+
+!! Register Names
+
+* `a` - `z`: Named registers for user storage
+* `"`: Default register (also receives all copies)
+
+!! Example Workflow
+
+```
+1. Select "Hello"
+2. Ctrl+Alt+C → enter "a" → stored in register a
+3. Select "World"  
+4. Ctrl+Alt+C → enter "b" → stored in register b
+5. Move cursor
+6. Ctrl+Alt+V → enter "a" → pastes "Hello"
+7. Ctrl+Alt+V → enter "b" → pastes "World"
+```
+
+!! Configuration
+
+|!Tiddler |!Values |!Default |
+|`$:/config/Editor/EnableRegisters` |`yes` / `no` |`no` |
+
+!! Widget Attribute
+
+```
+<$edit-text enableRegisters="yes"/>
+```
+
+!! Notes
+
+* Registers persist within the editor session
+* Disabled by default (Vim users may prefer full Vim mode)
+* Works independently of Vim mode

@@ -1,0 +1,6 @@
+{
+	"title": "$:/plugins/tiddlywiki/editor/folding",
+	"name": "Folding",
+	"description": "Editor Plugin",
+	"list": "readme"
+}

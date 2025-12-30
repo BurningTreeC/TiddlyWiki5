@@ -1,0 +1,6 @@
+{
+	"title": "$:/plugins/tiddlywiki/editor/command-palette",
+	"name": "CommandPalette",
+	"description": "Editor Plugin",
+	"list": "readme"
+}
