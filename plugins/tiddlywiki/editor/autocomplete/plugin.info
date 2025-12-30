@@ -1,0 +1,6 @@
+{
+	"title": "$:/plugins/tiddlywiki/editor/autocomplete",
+	"name": "Autocomplete",
+	"description": "Editor Plugin",
+	"list": "readme"
+}

@@ -24,6 +24,7 @@ exports.configTiddlerAlt = "$:/config/EnableSmartPairs";  // Legacy fallback
 exports.defaultEnabled = true;
 exports.description = "Automatically close brackets, quotes, and wikitext markup";
 exports.category = "editing";
+exports.supports = { simple: true, framed: true };
 
 // ==================== PLUGIN IMPLEMENTATION ====================
 

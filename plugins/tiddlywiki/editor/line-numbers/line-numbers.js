@@ -22,6 +22,7 @@ exports.configTiddlerAlt = "$:/config/ShowLineNumbers";
 exports.defaultEnabled = true;
 exports.description = "Show line numbers in the editor gutter";
 exports.category = "display";
+exports.supports = { simple: false, framed: true };
 
 // ==================== PLUGIN IMPLEMENTATION ====================
 

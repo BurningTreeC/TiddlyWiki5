@@ -15,7 +15,10 @@ Production-ready goals:
 - click/ctrl+click correctness (plugins can add cursors without losing existing ones)
 - IME/composition safety (avoid corrupting multi-cursor state)
 - decoration hygiene (optional owner-based clearing)
-- Plugin metadata system: plugins declare their own config tiddlers
+- Plugin metadata system: plugins declare supports + config tiddlers
+
+Plugin support contract:
+exports.supports = { simple: true/false, framed: true/false }  (optional; default true/true)
 
 \*/
 
@@ -26,12 +29,14 @@ var HEIGHT_VALUE_TITLE = "$:/config/TextEditor/EditorHeight/Height";
 function FramedEngine(options) {
 	options = options || {};
 	this.widget = options.widget;
+	this.wiki = this.widget && this.widget.wiki;
 	this.value = options.value || "";
 	this.parentNode = options.parentNode;
 	this.nextSibling = options.nextSibling;
 
+	// Plugin system
 	this.plugins = [];
-	this.pluginMetadata = {}; // name -> {configTiddler, configTiddlerAlt, defaultEnabled, ...}
+	this.pluginMetadata = {}; // name -> metadata
 	this.hooks = {
 		beforeInput: [],
 		afterInput: [],
@@ -49,6 +54,7 @@ function FramedEngine(options) {
 		render: []
 	};
 
+	// Cursor model
 	this.cursors = [{
 		id: "primary",
 		start: 0,
@@ -63,6 +69,8 @@ function FramedEngine(options) {
 	this._listeners = [];
 	this._intervals = [];
 
+	this.isComposing = false;
+
 	this.createDOM();
 	this.initializeUndoSystem();
 	this.initializePlugins();
@@ -76,21 +84,26 @@ function FramedEngine(options) {
 	this.renderCursors();
 }
 
+// ==================== DOM / IFRAME ====================
+
 FramedEngine.prototype.createDOM = function() {
 	var doc = this.widget.document;
 
+	// Dummy textarea (style source)
 	this.dummyTextArea = doc.createElement("textarea");
 	if(this.widget.editClass) this.dummyTextArea.className = this.widget.editClass;
 	this.dummyTextArea.setAttribute("hidden","true");
 	this.parentNode.insertBefore(this.dummyTextArea,this.nextSibling);
 	this.widget.domNodes.push(this.dummyTextArea);
 
+	// Wrapper
 	this.wrapperNode = doc.createElement("div");
 	this.wrapperNode.className = "tc-editor-wrapper";
 	this.wrapperNode.style.position = "relative";
 	this.parentNode.insertBefore(this.wrapperNode,this.nextSibling);
 	this.widget.domNodes.push(this.wrapperNode);
 
+	// Iframe
 	this.iframeNode = doc.createElement("iframe");
 	this.iframeNode.setAttribute("frameborder","0");
 	this.iframeNode.setAttribute("scrolling","no");
@@ -102,13 +115,13 @@ FramedEngine.prototype.createDOM = function() {
 	this.wrapperNode.appendChild(this.iframeNode);
 	this.widget.domNodes.push(this.iframeNode);
 
+	// Determine palette color-scheme (best-effort)
 	var paletteTitle = this.widget.wiki.getTiddlerText("$:/palette");
 	var colorScheme = (this.widget.wiki.getTiddler(paletteTitle) || {fields:{}}).fields["color-scheme"] || "light";
-
-	this.iframeDoc = this.iframeNode.contentWindow && this.iframeNode.contentWindow.document;
-	if(!this.iframeDoc) this.iframeDoc = doc;
-
 	var safeScheme = String(colorScheme).replace(/'/g,"&#39;");
+
+	// Boot iframe document
+	this.iframeDoc = (this.iframeNode.contentWindow && this.iframeNode.contentWindow.document) || doc;
 
 	this.iframeDoc.open();
 	this.iframeDoc.write([
@@ -131,7 +144,6 @@ FramedEngine.prototype.createDOM = function() {
 		"html,body{margin:0;padding:0;height:100%;}",
 		"body{overflow:hidden;font:inherit;}",
 
-		/* Layout: gutter + main editor side by side */
 		".tc-editor-container{",
 			"position:relative;",
 			"display:flex;",
@@ -140,7 +152,6 @@ FramedEngine.prototype.createDOM = function() {
 			"height:100%;",
 		"}",
 
-		/* Gutter for line numbers */
 		".tc-editor-gutter{",
 			"flex:0 0 auto;",
 			"min-width:3em;",
@@ -156,10 +167,9 @@ FramedEngine.prototype.createDOM = function() {
 			"pointer-events:none;",
 			"overflow:hidden;",
 			"position:relative;",
-			"display:none;",  /* Hidden by default, shown when line-numbers enabled */
+			"display:none;",
 		"}",
 
-		/* Main editor area */
 		".tc-editor-main{",
 			"position:relative;",
 			"flex:1 1 auto;",
@@ -167,7 +177,6 @@ FramedEngine.prototype.createDOM = function() {
 			"height:100%;",
 		"}",
 
-		/* Textarea styles */
 		".tc-editor-main textarea,.tc-editor-main input{",
 			"display:block;",
 			"position:relative;",
@@ -189,7 +198,6 @@ FramedEngine.prototype.createDOM = function() {
 			"-moz-tab-size:4;",
 		"}",
 
-		/* Overlay for cursors and decorations */
 		".tc-editor-overlay{",
 			"position:absolute;",
 			"top:0;",
@@ -199,6 +207,7 @@ FramedEngine.prototype.createDOM = function() {
 			"pointer-events:none;",
 			"overflow:hidden;",
 			"z-index:2;",
+			"transform:translate(0,0);",
 		"}",
 		".tc-editor-cursor-layer,.tc-editor-decoration-layer{",
 			"position:absolute;",
@@ -208,7 +217,6 @@ FramedEngine.prototype.createDOM = function() {
 			"bottom:0;",
 		"}",
 
-		/* Multi-cursor styles */
 		".tc-cursor{",
 			"position:absolute;",
 			"width:2px;",
@@ -237,24 +245,18 @@ FramedEngine.prototype.createDOM = function() {
 	].join(""));
 	this.iframeDoc.close();
 
-	// Get references to container elements
+	// Re-acquire references (post-write)
+	this.iframeWin = this.iframeNode.contentWindow || (this.iframeDoc && this.iframeDoc.defaultView) || window;
 	this.container = this.iframeDoc.querySelector(".tc-editor-container") || this.iframeDoc.body;
 	this.gutterNode = this.iframeDoc.querySelector(".tc-editor-gutter");
-	this.mainNode = this.iframeDoc.querySelector(".tc-editor-main");
-	
-	// Fallback if main doesn't exist
-	if(!this.mainNode) {
-		this.mainNode = this.iframeDoc.createElement("div");
-		this.mainNode.className = "tc-editor-main";
-		this.container.appendChild(this.mainNode);
-	}
+	this.mainNode = this.iframeDoc.querySelector(".tc-editor-main") || this.container;
 
+	// Inherit class for styling
 	this.iframeNode.className = this.dummyTextArea.className;
 
-	// Create textarea
+	// Create textarea/input
 	var tag = this.widget.editTag;
 	if($tw.config.htmlUnsafeElements.indexOf(tag) !== -1) tag = "input";
-
 	this.domNode = this.iframeDoc.createElement(tag);
 	this.widget.domNodes.push(this.domNode);
 	this.domNode.value = this.value;
@@ -262,7 +264,7 @@ FramedEngine.prototype.createDOM = function() {
 	this.setAttributes();
 	this.copyStyles();
 
-	// Create overlay structure
+	// Overlay structure (always present in framed engine)
 	this.overlayNode = this.iframeDoc.createElement("div");
 	this.overlayNode.className = "tc-editor-overlay";
 
@@ -275,7 +277,7 @@ FramedEngine.prototype.createDOM = function() {
 	this.overlayNode.appendChild(this.cursorLayer);
 	this.overlayNode.appendChild(this.decorationLayer);
 
-	// FIXED: Append to mainNode, not container!
+	// Append to mainNode
 	this.mainNode.appendChild(this.domNode);
 	this.mainNode.appendChild(this.overlayNode);
 
@@ -284,21 +286,14 @@ FramedEngine.prototype.createDOM = function() {
 };
 
 FramedEngine.prototype.setAttributes = function() {
-	if(this.widget.editType && this.widget.editTag !== "textarea") {
-		this.domNode.setAttribute("type",this.widget.editType);
-	}
-
+	if(this.widget.editType && this.widget.editTag !== "textarea") this.domNode.setAttribute("type",this.widget.editType);
 	if(this.widget.editPlaceholder) this.domNode.setAttribute("placeholder",this.widget.editPlaceholder);
 	if(this.widget.editSize) this.domNode.setAttribute("size",this.widget.editSize);
 	if(this.widget.editRows) this.domNode.setAttribute("rows",this.widget.editRows);
 	if(this.widget.editAutoComplete) this.domNode.setAttribute("autocomplete",this.widget.editAutoComplete);
 
-	if(this.widget.editSpellcheck !== undefined) {
-		this.domNode.setAttribute("spellcheck",this.widget.editSpellcheck === "yes" ? "true" : "false");
-	}
-	if(this.widget.editWrap !== undefined && this.widget.editTag === "textarea") {
-		this.domNode.setAttribute("wrap",this.widget.editWrap);
-	}
+	if(this.widget.editSpellcheck !== undefined) this.domNode.setAttribute("spellcheck",this.widget.editSpellcheck === "yes" ? "true" : "false");
+	if(this.widget.editWrap !== undefined && this.widget.editTag === "textarea") this.domNode.setAttribute("wrap",this.widget.editWrap);
 	if(this.widget.editAutoCorrect !== undefined) this.domNode.setAttribute("autocorrect",this.widget.editAutoCorrect);
 	if(this.widget.editAutoCapitalize !== undefined) this.domNode.setAttribute("autocapitalize",this.widget.editAutoCapitalize);
 	if(this.widget.editInputMode !== undefined) this.domNode.setAttribute("inputmode",this.widget.editInputMode);
@@ -313,21 +308,19 @@ FramedEngine.prototype.setAttributes = function() {
 	if(this.widget.isDisabled === "yes") this.domNode.setAttribute("disabled",true);
 	if(this.widget.editReadOnly === "yes") this.domNode.setAttribute("readonly",true);
 
-	if(this.widget.editTabIndex) {
-		this.iframeNode.setAttribute("tabindex",this.widget.editTabIndex);
-	}
+	if(this.widget.editTabIndex) this.iframeNode.setAttribute("tabindex",this.widget.editTabIndex);
 };
 
 FramedEngine.prototype.copyStyles = function() {
 	$tw.utils.copyStyles(this.dummyTextArea,this.domNode);
-
 	this.domNode.style.display = "block";
 	this.domNode.style.width = "100%";
 	this.domNode.style.margin = "0";
 	this.domNode.style.resize = "none";
-
 	this.domNode.style["-webkit-text-fill-color"] = "currentcolor";
 };
+
+// ==================== LISTENERS / CLEANUP ====================
 
 FramedEngine.prototype._on = function(target, name, handler, opts) {
 	if(!target || !target.addEventListener) return;
@@ -368,13 +361,17 @@ FramedEngine.prototype.addEventListeners = function() {
 	this._on(this.domNode, "select", function(e){ self.handleSelectEvent(e); });
 	this._on(this.domNode, "scroll", function(e){ self.handleScrollEvent(e); });
 
+	// Undo capture + multi-cursor intercept
 	this._on(this.domNode, "beforeinput", function(e){ self.handleBeforeInputEvent(e); });
 
+	// IME safety
 	this._on(this.domNode, "compositionstart", function(e){ self.handleCompositionStart(e); });
 	this._on(this.domNode, "compositionend", function(e){ self.handleCompositionEnd(e); });
 
+	// Selection change polling (textarea doesn't reliably fire 'select' for all caret moves)
 	this._setInterval(function(){ self.checkSelectionChange(); }, 60);
 
+	// Optional file drop
 	if(this.widget.isFileDropEnabled) {
 		this._on(this.domNode, "dragenter", function(e){ self.widget.handleDragEnterEvent(e); });
 		this._on(this.domNode, "dragover", function(e){ self.widget.handleDragOverEvent(e); });
@@ -387,20 +384,33 @@ FramedEngine.prototype.addEventListeners = function() {
 
 // ==================== PLUGIN SYSTEM ====================
 
-/**
- * Initialize the plugin system.
- * Discovers all editor-plugin modules, collects their metadata,
- * registers them, but does NOT enable them yet.
- * Enabling happens via enablePluginsByConfig() called from the widget.
- */
+FramedEngine.prototype._normalizeSupports = function(supports) {
+	supports = supports || {};
+	return {
+		simple: (supports.simple !== false),
+		framed: (supports.framed !== false)
+	};
+};
+
+FramedEngine.prototype._setFramedEnabledInMetadata = function(name, enabled, reason) {
+	if(!name) return;
+	var meta = this.pluginMetadata && this.pluginMetadata[name];
+	if(!meta) return;
+	if(!meta.supports) meta.supports = { simple: true, framed: true };
+	if(!meta.framedEngine) meta.framedEngine = { supported: true, enabled: false, reason: "unknown" };
+	meta.framedEngine.enabled = !!enabled;
+	if(reason) meta.framedEngine.reason = reason;
+};
+
 FramedEngine.prototype.initializePlugins = function() {
 	var self = this;
 
-	// Discover and register all plugins
 	$tw.modules.forEachModuleOfType("editor-plugin", function(title, module) {
 		if(!module || !module.create) return;
 
-		// Collect metadata from module exports
+		var supports = self._normalizeSupports(module.supports);
+
+		// Metadata BEFORE instantiation
 		var meta = {
 			title: title,
 			name: module.name || title.replace(/.*\//, "").replace(/\.js$/, ""),
@@ -408,15 +418,38 @@ FramedEngine.prototype.initializePlugins = function() {
 			configTiddlerAlt: module.configTiddlerAlt || null,
 			defaultEnabled: module.defaultEnabled !== undefined ? module.defaultEnabled : false,
 			description: module.description || "",
-			category: module.category || "general"
+			category: module.category || "general",
+
+			// NEW
+			supports: { simple: supports.simple, framed: supports.framed },
+			framedEngine: {
+				supported: supports.framed,
+				enabled: false,
+				reason: supports.framed ? "loaded" : "unsupported"
+			}
 		};
+
+		// Store metadata even if skipped
+		self.pluginMetadata[meta.name] = meta;
+
+		// Skip unsupported framed plugins BEFORE create()
+		if(!supports.framed) return;
 
 		try {
 			var plugin = module.create(self);
 			if(plugin) {
-				// Store metadata on the plugin instance too
+				// Re-key metadata if plugin instance name differs
+				var pluginName = plugin.name || meta.name;
+				if(pluginName !== meta.name) {
+					meta.name = pluginName;
+					self.pluginMetadata[pluginName] = meta;
+					try { delete self.pluginMetadata[title.replace(/.*\//, "").replace(/\.js$/, "")]; } catch(e) {}
+				}
+
 				plugin._meta = meta;
 				self.registerPlugin(plugin, meta);
+
+				self._setFramedEnabledInMetadata(pluginName, false, "registered");
 			}
 		} catch(e) {
 			console.error("Failed to create editor plugin:", title, e);
@@ -424,23 +457,15 @@ FramedEngine.prototype.initializePlugins = function() {
 	});
 };
 
-/**
- * Register a plugin instance and its metadata.
- */
 FramedEngine.prototype.registerPlugin = function(plugin, meta) {
 	this.plugins.push(plugin);
 
-	// Store metadata by plugin name
 	var name = (plugin && plugin.name) || (meta && meta.name);
-	if(name) {
-		this.pluginMetadata[name] = meta || {};
-	}
+	if(name) this.pluginMetadata[name] = meta || this.pluginMetadata[name] || {};
 
 	if(plugin.hooks) {
 		for(var hookName in plugin.hooks) {
-			if(this.hooks[hookName]) {
-				this.hooks[hookName].push({ plugin: plugin, handler: plugin.hooks[hookName] });
-			}
+			if(this.hooks[hookName]) this.hooks[hookName].push({ plugin: plugin, handler: plugin.hooks[hookName] });
 		}
 	}
 
@@ -450,18 +475,8 @@ FramedEngine.prototype.registerPlugin = function(plugin, meta) {
 	}
 };
 
-/**
- * Get metadata for all registered plugins.
- * Returns an object: { pluginName: {configTiddler, defaultEnabled, ...}, ... }
- */
-FramedEngine.prototype.getPluginMetadata = function() {
-	return this.pluginMetadata;
-};
+FramedEngine.prototype.getPluginMetadata = function() { return this.pluginMetadata; };
 
-/**
- * Get list of all config tiddlers used by registered plugins.
- * Used by factory.js to know which tiddlers to watch for refresh.
- */
 FramedEngine.prototype.getPluginConfigTiddlers = function() {
 	var tiddlers = [];
 	for(var name in this.pluginMetadata) {
@@ -472,84 +487,62 @@ FramedEngine.prototype.getPluginConfigTiddlers = function() {
 	return tiddlers;
 };
 
-/**
- * Check if a plugin with the given name is registered.
- */
 FramedEngine.prototype.hasPlugin = function(name) {
-	return this.plugins.some(function(p) { return p && p.name === name; });
+	for(var i = 0; i < this.plugins.length; i++) if(this.plugins[i] && this.plugins[i].name === name) return true;
+	return false;
 };
 
-/**
- * Get a plugin by name. Returns null if not found.
- */
 FramedEngine.prototype.getPlugin = function(name) {
-	return this.plugins.find(function(p){ return p && p.name === name; }) || null;
+	for(var i = 0; i < this.plugins.length; i++) if(this.plugins[i] && this.plugins[i].name === name) return this.plugins[i];
+	return null;
 };
 
-/**
- * Enable a plugin by name. Only works if the plugin is registered.
- */
 FramedEngine.prototype.enablePlugin = function(name) {
+	var meta = this.pluginMetadata && this.pluginMetadata[name];
+	if(meta && meta.framedEngine && meta.framedEngine.supported === false) {
+		this._setFramedEnabledInMetadata(name, false, "unsupported");
+		return;
+	}
 	var plugin = this.getPlugin(name);
 	if(plugin && plugin.enable) {
 		try { plugin.enable(); }
 		catch(e) { console.error("Plugin enable error:", name, e); }
 	}
+	this._setFramedEnabledInMetadata(name, true, "enabled");
 };
 
-/**
- * Disable a plugin by name.
- */
 FramedEngine.prototype.disablePlugin = function(name) {
 	var plugin = this.getPlugin(name);
 	if(plugin && plugin.disable) {
 		try { plugin.disable(); }
 		catch(e) { console.error("Plugin disable error:", name, e); }
 	}
+	this._setFramedEnabledInMetadata(name, false, "disabled");
 };
 
-/**
- * Enable or disable a plugin based on a flag.
- */
 FramedEngine.prototype.setPluginEnabled = function(name, enabled) {
-	if(enabled) {
-		this.enablePlugin(name);
-	} else {
-		this.disablePlugin(name);
-	}
+	if(enabled) this.enablePlugin(name);
+	else this.disablePlugin(name);
 };
 
-/**
- * Enable plugins based on configuration from widget.
- * Called by factory.js after reading config tiddlers.
- * @param {Object} enabledMap - { pluginName: "yes"|"no", ... }
- */
 FramedEngine.prototype.enablePluginsByConfig = function(enabledMap) {
-	var self = this;
-	
-	// Iterate through registered plugins
 	for(var i = 0; i < this.plugins.length; i++) {
 		var plugin = this.plugins[i];
 		if(!plugin || !plugin.name) continue;
-		
-		var shouldEnable = false;
-		
-		// Check if explicitly configured
+
+		var meta = this.pluginMetadata[plugin.name];
+		var shouldEnable;
+
 		if(enabledMap && enabledMap[plugin.name] !== undefined) {
-			shouldEnable = (enabledMap[plugin.name] === "yes");
+			shouldEnable = (enabledMap[plugin.name] === "yes" || enabledMap[plugin.name] === true);
 		} else {
-			// Fall back to plugin's default
-			var meta = this.pluginMetadata[plugin.name];
-			shouldEnable = meta ? meta.defaultEnabled : false;
+			shouldEnable = meta ? !!meta.defaultEnabled : false;
 		}
-		
+
 		this.setPluginEnabled(plugin.name, shouldEnable);
 	}
 };
 
-/**
- * Configure a plugin with options. Only works if plugin has configure() method.
- */
 FramedEngine.prototype.configurePlugin = function(name, options) {
 	var plugin = this.getPlugin(name);
 	if(plugin && plugin.configure) {
@@ -578,7 +571,12 @@ FramedEngine.prototype.runHooks = function(hookName, event, data) {
 // ==================== CURSOR MANAGEMENT ====================
 
 FramedEngine.prototype.getCursors = function() { return this.cursors; };
-FramedEngine.prototype.getPrimaryCursor = function() { return this.cursors.find(function(c){ return c.isPrimary; }); };
+
+FramedEngine.prototype.getPrimaryCursor = function() {
+	for(var i = 0; i < this.cursors.length; i++) if(this.cursors[i] && this.cursors[i].isPrimary) return this.cursors[i];
+	return this.cursors[0];
+};
+
 FramedEngine.prototype.hasMultipleCursors = function() { return this.cursors.length > 1; };
 
 FramedEngine.prototype.addCursor = function(position, selection) {
@@ -596,24 +594,45 @@ FramedEngine.prototype.addCursor = function(position, selection) {
 
 FramedEngine.prototype.removeCursor = function(id) {
 	if(this.cursors.length <= 1) return;
-	this.cursors = this.cursors.filter(function(c){ return c.isPrimary || c.id !== id; });
+	var out = [];
+	for(var i = 0; i < this.cursors.length; i++) {
+		var c = this.cursors[i];
+		if(c.isPrimary || c.id !== id) out.push(c);
+	}
+	this.cursors = out;
 	this.renderCursors();
 };
 
 FramedEngine.prototype.clearSecondaryCursors = function() {
-	this.cursors = this.cursors.filter(function(c){ return c.isPrimary; });
+	var out = [];
+	for(var i = 0; i < this.cursors.length; i++) if(this.cursors[i] && this.cursors[i].isPrimary) out.push(this.cursors[i]);
+	this.cursors = out.length ? out : [this.cursors[0]];
 	this.renderCursors();
 };
 
 FramedEngine.prototype.sortAndMergeCursors = function() {
+	if(!this.cursors || !this.cursors.length) return;
+
+	// Normalize bounds
+	for(var i = 0; i < this.cursors.length; i++) {
+		var c = this.cursors[i];
+		if(!c) continue;
+		c.start = Math.max(0, c.start|0);
+		c.end = Math.max(0, c.end|0);
+		if(c.end < c.start) { var tmp = c.start; c.start = c.end; c.end = tmp; }
+	}
+
 	this.cursors.sort(function(a,b){ return a.start - b.start; });
-	if(this.cursors.length < 2) return;
+	if(this.cursors.length < 2) {
+		this.cursors[0].isPrimary = true;
+		return;
+	}
 
 	var merged = [this.cursors[0]];
-	for(var i = 1; i < this.cursors.length; i++) {
+	for(i = 1; i < this.cursors.length; i++) {
 		var cur = this.cursors[i];
 		var last = merged[merged.length - 1];
-		if(cur.start <= last.end + 1) {
+		if(cur.start <= last.end) {
 			last.end = Math.max(last.end, cur.end);
 			last.isPrimary = last.isPrimary || cur.isPrimary;
 		} else {
@@ -622,14 +641,13 @@ FramedEngine.prototype.sortAndMergeCursors = function() {
 	}
 	this.cursors = merged;
 
+	// Ensure exactly one primary
 	var primaryIndex = -1;
 	for(i = 0; i < this.cursors.length; i++) {
 		if(this.cursors[i].isPrimary) { primaryIndex = i; break; }
 	}
 	if(primaryIndex === -1) primaryIndex = 0;
-	for(i = 0; i < this.cursors.length; i++) {
-		this.cursors[i].isPrimary = (i === primaryIndex);
-	}
+	for(i = 0; i < this.cursors.length; i++) this.cursors[i].isPrimary = (i === primaryIndex);
 };
 
 FramedEngine.prototype.mergeCursors = function() { this.sortAndMergeCursors(); };
@@ -653,18 +671,27 @@ FramedEngine.prototype.syncDOMFromCursor = function() {
 	}
 };
 
+// ==================== RENDER CURSORS ====================
+
 FramedEngine.prototype.renderCursors = function() {
 	if(!this.cursorLayer || !this.iframeDoc) return;
-	var self = this;
-	this.cursorLayer.innerHTML = "";
 
-	this.cursors.forEach(function(cursor) {
-		if(cursor.isPrimary) return;
+	this.cursorLayer.innerHTML = "";
+	if(!this.hasMultipleCursors()) {
+		this.runHooks("render", null, { layer: this.cursorLayer, decorationLayer: this.decorationLayer });
+		return;
+	}
+
+	var self = this;
+
+	for(var i = 0; i < this.cursors.length; i++) {
+		var cursor = this.cursors[i];
+		if(!cursor || cursor.isPrimary) continue;
 
 		if(cursor.start !== cursor.end) {
 			var rects = self.getRectsForRange(cursor.start, cursor.end);
-			for(var i = 0; i < rects.length; i++) {
-				var r = rects[i];
+			for(var j = 0; j < rects.length; j++) {
+				var r = rects[j];
 				var selEl = self.iframeDoc.createElement("div");
 				selEl.className = "tc-selection";
 				selEl.style.left = r.left + "px";
@@ -684,29 +711,33 @@ FramedEngine.prototype.renderCursors = function() {
 			cEl.style.height = caret.height + "px";
 			self.cursorLayer.appendChild(cEl);
 		}
-	});
+	}
 
 	this.runHooks("render", null, { layer: this.cursorLayer, decorationLayer: this.decorationLayer });
 };
 
+// ==================== GEOMETRY (CARET / RECTS) ====================
+
 FramedEngine.prototype.getCoordinatesForPosition = function(position) {
 	var textarea = this.domNode;
-	if(!textarea || !this.iframeDoc || !this.iframeNode || !this.iframeNode.contentWindow) return null;
+	var doc = this.iframeDoc;
+	var win = this.iframeWin;
+	if(!textarea || !doc || !win) return null;
 
 	var text = textarea.value || "";
 	position = Math.max(0, Math.min(position, text.length));
 
-	var win = this.iframeNode.contentWindow;
 	var cs = win.getComputedStyle(textarea);
 
-	var mirror = this.iframeDoc.createElement("div");
+	// Mirror element (like simple engine, but inside iframe)
+	var mirror = doc.createElement("div");
 	mirror.style.position = "absolute";
 	mirror.style.visibility = "hidden";
 	mirror.style.whiteSpace = "pre-wrap";
 	mirror.style.wordWrap = "break-word";
 	mirror.style.overflowWrap = cs.overflowWrap || "break-word";
 	mirror.style.wordBreak = cs.wordBreak || "normal";
-	mirror.style.boxSizing = cs.boxSizing;
+	mirror.style.boxSizing = cs.boxSizing || "content-box";
 	mirror.style.width = textarea.clientWidth + "px";
 
 	var props = [
@@ -717,31 +748,53 @@ FramedEngine.prototype.getCoordinatesForPosition = function(position) {
 	];
 	for(var i = 0; i < props.length; i++) mirror.style[props[i]] = cs[props[i]];
 
-	mirror.textContent = text.substring(0, position);
+	function esc(s){
+		return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+	}
 
-	var span = this.iframeDoc.createElement("span");
-	span.textContent = text.substring(position, position + 1) || "\u200B";
-	mirror.appendChild(span);
+	var before = esc(text.slice(0, position));
+	before = before.replace(/\n$/,"\n\u200b");
+	before = before.replace(/\n/g,"<br/>");
+	before = before.replace(/\t/g,"<span style=\"white-space:pre\">\t</span>");
 
-	this.iframeDoc.body.appendChild(mirror);
+	var marker = doc.createElement("span");
+	marker.textContent = "\u200b";
 
-	var left = span.offsetLeft;
-	var top = span.offsetTop;
+	mirror.innerHTML = before;
+	mirror.appendChild(marker);
+
+	// Append near textarea to inherit layout context
+	var host = textarea.parentNode || doc.body || doc.documentElement;
+	if(!host) return null;
+	host.appendChild(mirror);
+
+	var markerRect = marker.getBoundingClientRect();
+	var mirrorRect = mirror.getBoundingClientRect();
+
+	try { host.removeChild(mirror); } catch(e) {}
+
+	// Convert to textarea content coords and correct for textarea scrolling
+	var scrollTop = textarea.scrollTop || 0;
+	var scrollLeft = textarea.scrollLeft || 0;
+
+	var relLeft = (markerRect.left - mirrorRect.left) - scrollLeft;
+	var relTop = (markerRect.top - mirrorRect.top) - scrollTop;
 
 	var lh = parseFloat(cs.lineHeight);
-	var height = (isFinite(lh) && lh > 0) ? lh : (span.getBoundingClientRect().height || 20);
+	var h = (isFinite(lh) && lh > 0) ? lh : (markerRect.height || 16);
 
-	this.iframeDoc.body.removeChild(mirror);
-
-	return { left: left, top: top, height: height };
+	return { left: relLeft, top: relTop, height: h };
 };
 
-FramedEngine.prototype.getRectsForRange = function(start,end) {
+FramedEngine.prototype.getRectsForRange = function(start, end) {
+	// Lightweight rect approximation:
+	// - accurate for single-line
+	// - for multi-line: first line to end, middle full lines, last line to caret
 	var s = this.getCoordinatesForPosition(start);
 	var e = this.getCoordinatesForPosition(end);
 	if(!s || !e) return [];
 
-	var lineHeight = s.height;
+	var lineHeight = s.height || e.height || 16;
 
 	if(Math.abs(s.top - e.top) < lineHeight * 0.5) {
 		return [{
@@ -752,13 +805,15 @@ FramedEngine.prototype.getRectsForRange = function(start,end) {
 		}];
 	}
 
-	var rects = [];
-	var win = this.iframeNode.contentWindow;
+	var win = this.iframeWin;
 	var cs = win.getComputedStyle(this.domNode);
 	var paddingLeft = parseFloat(cs.paddingLeft) || 0;
 	var paddingRight = parseFloat(cs.paddingRight) || 0;
 	var contentWidth = Math.max(0, this.domNode.clientWidth - paddingLeft - paddingRight);
 
+	var rects = [];
+
+	// First line
 	rects.push({
 		left: s.left,
 		top: s.top,
@@ -766,6 +821,7 @@ FramedEngine.prototype.getRectsForRange = function(start,end) {
 		height: lineHeight
 	});
 
+	// Middle lines
 	var y = s.top + lineHeight;
 	while(y + lineHeight <= e.top) {
 		rects.push({
@@ -777,6 +833,7 @@ FramedEngine.prototype.getRectsForRange = function(start,end) {
 		y += lineHeight;
 	}
 
+	// Last line
 	rects.push({
 		left: paddingLeft,
 		top: e.top,
@@ -841,7 +898,6 @@ FramedEngine.prototype.recordUndo = function(forceSeparate) {
 
 	this.lastSavedState = afterState;
 	this.redoStack = [];
-
 	this.lastUndoTime = forceSeparate ? 0 : now;
 };
 
@@ -853,6 +909,7 @@ FramedEngine.prototype.applyState = function(state) {
 
 	if(state.cursors && state.cursors.length) {
 		this.cursors = JSON.parse(JSON.stringify(state.cursors));
+		this.sortAndMergeCursors();
 		this.syncDOMFromCursor();
 	} else {
 		try { this.domNode.setSelectionRange(state.selectionStart || 0, state.selectionEnd || 0); } catch(e) {}
@@ -906,13 +963,15 @@ FramedEngine.prototype.insertAtAllCursors = function(insertText) {
 	this.captureBeforeState();
 
 	var text = this.domNode.value;
-	var sortedDesc = this.cursors.slice().sort(function(a,b){ return b.start - a.start; });
 
+	// Apply from right to left to preserve indices
+	var sortedDesc = this.cursors.slice().sort(function(a,b){ return b.start - a.start; });
 	for(var i = 0; i < sortedDesc.length; i++) {
 		var c = sortedDesc[i];
 		text = text.substring(0, c.start) + insertText + text.substring(c.end);
 	}
 
+	// Move cursors (left to right)
 	var sortedAsc = this.cursors.slice().sort(function(a,b){ return a.start - b.start; });
 	var cumulative = 0;
 	for(i = 0; i < sortedAsc.length; i++) {
@@ -962,12 +1021,15 @@ FramedEngine.prototype.deleteAtAllCursors = function(forward) {
 		deletions.push({ id: c.id, at: start, len: end - start });
 	}
 
+	// Reposition cursors
 	var sortedAsc = this.cursors.slice().sort(function(a,b){ return a.start - b.start; });
 	var cumulative = 0;
 	for(i = 0; i < sortedAsc.length; i++) {
 		c = sortedAsc[i];
-		var d = deletions.find(function(x){ return x.id === c.id; });
+		var d = null;
+		for(var j = 0; j < deletions.length; j++) if(deletions[j].id === c.id) { d = deletions[j]; break; }
 		if(!d) continue;
+
 		var newPos = Math.max(0, d.at + cumulative);
 		c.start = newPos;
 		c.end = newPos;
@@ -1009,7 +1071,6 @@ FramedEngine.prototype.createTextOperation = function() {
 	var text = this.domNode.value;
 	var ops = [];
 
-	// Ensure we have at least one cursor
 	if(!this.cursors || this.cursors.length === 0) {
 		this.cursors = [{
 			id: "primary",
@@ -1039,8 +1100,7 @@ FramedEngine.prototype.createTextOperation = function() {
 		});
 	}
 
-	// Backward compatibility: for single cursor, also set properties on the array itself
-	// so old text operations (that do operation.selStart, operation.replacement, etc.) work
+	// Back-compat for old single-cursor ops (properties on array)
 	if(ops.length >= 1) {
 		var o = ops[0];
 		ops.text = o.text;
@@ -1059,55 +1119,44 @@ FramedEngine.prototype.createTextOperation = function() {
 FramedEngine.prototype.executeTextOperation = function(operations) {
 	var opArray = Array.isArray(operations) ? operations : [operations];
 
-	// Backward compatibility: old text operations set properties on the array itself
-	// (when operations is an array with length 1). Copy those to operations[0].
+	// Back-compat: properties set on the array (when length 1)
 	if(Array.isArray(operations) && operations.length === 1) {
 		var op0 = operations[0];
-		// Check if old-style properties were set on the array (not null/undefined)
-		// Old operations do: operation.replacement = "something"
-		// which sets it on the array, not on operations[0]
-		if(operations.replacement !== null && operations.replacement !== undefined) {
-			op0.replacement = operations.replacement;
-		}
-		if(operations.cutStart !== null && operations.cutStart !== undefined) {
-			op0.cutStart = operations.cutStart;
-		}
-		if(operations.cutEnd !== null && operations.cutEnd !== undefined) {
-			op0.cutEnd = operations.cutEnd;
-		}
-		if(operations.newSelStart !== null && operations.newSelStart !== undefined) {
-			op0.newSelStart = operations.newSelStart;
-		}
-		if(operations.newSelEnd !== null && operations.newSelEnd !== undefined) {
-			op0.newSelEnd = operations.newSelEnd;
-		}
+		if(operations.replacement !== null && operations.replacement !== undefined) op0.replacement = operations.replacement;
+		if(operations.cutStart !== null && operations.cutStart !== undefined) op0.cutStart = operations.cutStart;
+		if(operations.cutEnd !== null && operations.cutEnd !== undefined) op0.cutEnd = operations.cutEnd;
+		if(operations.newSelStart !== null && operations.newSelStart !== undefined) op0.newSelStart = operations.newSelStart;
+		if(operations.newSelEnd !== null && operations.newSelEnd !== undefined) op0.newSelEnd = operations.newSelEnd;
 	}
 
-	var active = opArray.filter(function(op){ return op && op.replacement !== null && op.replacement !== undefined; });
+	var active = [];
+	for(var i = 0; i < opArray.length; i++) if(opArray[i] && opArray[i].replacement !== null && opArray[i].replacement !== undefined) active.push(opArray[i]);
 	if(!active.length) return this.domNode.value;
 
 	var hookResult = this.runHooks("beforeOperation", null, opArray);
 	if(hookResult.prevented) return this.domNode.value;
 
 	opArray = hookResult.data;
-	active = opArray.filter(function(op){ return op && op.replacement !== null && op.replacement !== undefined; });
+	active = [];
+	for(i = 0; i < opArray.length; i++) if(opArray[i] && opArray[i].replacement !== null && opArray[i].replacement !== undefined) active.push(opArray[i]);
 	if(!active.length) return this.domNode.value;
 
 	this.captureBeforeState();
 
-	active.sort(function(a,b){ return (b.cutStart || 0) - (a.cutStart || 0); });
+	// Apply descending by cutStart so indices remain valid
+	active.sort(function(a,b){ return ((b.cutStart != null ? b.cutStart : b.selStart) || 0) - ((a.cutStart != null ? a.cutStart : a.selStart) || 0); });
 
 	var text = this.domNode.value;
 	var updates = [];
 
-	for(var i = 0; i < active.length; i++) {
+	for(i = 0; i < active.length; i++) {
 		var op = active[i];
 
-		// Handle null/undefined cutStart/cutEnd - default to selection range
 		var cutStart = (op.cutStart !== null && op.cutStart !== undefined) ? op.cutStart : op.selStart;
 		var cutEnd = (op.cutEnd !== null && op.cutEnd !== undefined) ? op.cutEnd : op.selEnd;
 		cutStart = Math.max(0, Math.min(cutStart, text.length));
 		cutEnd = Math.max(cutStart, Math.min(cutEnd, text.length));
+
 		var repl = String(op.replacement);
 
 		text = text.substring(0, cutStart) + repl + text.substring(cutEnd);
@@ -1117,7 +1166,7 @@ FramedEngine.prototype.executeTextOperation = function(operations) {
 
 		updates.push({
 			cursorId: op.cursorId,
-			cutStart: op.cutStart,
+			cutStart: cutStart,
 			newStart: newSelStart,
 			newEnd: newSelEnd,
 			delta: repl.length - (cutEnd - cutStart)
@@ -1146,11 +1195,12 @@ FramedEngine.prototype.updateCursorsAfterMultiOperation = function(updates) {
 
 	for(var i = 0; i < this.cursors.length; i++) {
 		var c = this.cursors[i];
-		var u = updates.find(function(x){ return x.cursorId === c.id; });
+		var u = null;
+		for(var j = 0; j < updates.length; j++) if(updates[j].cursorId === c.id) { u = updates[j]; break; }
 		if(!u) continue;
 
 		var offset = 0;
-		for(var j = 0; j < sorted.length; j++) {
+		for(j = 0; j < sorted.length; j++) {
 			if(sorted[j].cutStart < u.cutStart) offset += sorted[j].delta;
 			else break;
 		}
@@ -1160,53 +1210,6 @@ FramedEngine.prototype.updateCursorsAfterMultiOperation = function(updates) {
 	}
 
 	this.sortAndMergeCursors();
-};
-
-FramedEngine.prototype.applySingleCursorEdit = function(edit) {
-	edit = edit || {};
-	if(edit.cutStart === undefined || edit.cutEnd === undefined) return;
-
-	var ops = this.createTextOperation();
-	var primary = Array.isArray(ops) ? ops[0] : ops;
-
-	var cutStart = edit.cutStart;
-	var cutEnd = edit.cutEnd;
-	var repl = (edit.replacement === undefined || edit.replacement === null) ? "" : String(edit.replacement);
-
-	primary.cutStart = cutStart;
-	primary.cutEnd = cutEnd;
-	primary.replacement = repl;
-
-	if(edit.newSelStart !== undefined) primary.newSelStart = edit.newSelStart;
-	if(edit.newSelEnd !== undefined) primary.newSelEnd = edit.newSelEnd;
-
-	return this.executeTextOperation([primary]);
-};
-
-FramedEngine.prototype.applyTextTransform = function(transformFn, opts) {
-	opts = opts || {};
-	if(typeof transformFn !== "function") return;
-
-	this.captureBeforeState();
-
-	var beforeText = this.domNode.value;
-	var beforeCursors = JSON.parse(JSON.stringify(this.cursors));
-	var out = transformFn(beforeText, beforeCursors);
-
-	if(!out || typeof out.text !== "string" || !Array.isArray(out.cursors)) {
-		return;
-	}
-
-	this.domNode.value = out.text;
-	this.cursors = out.cursors;
-
-	this.sortAndMergeCursors();
-	this.syncDOMFromCursor();
-	this.renderCursors();
-
-	this.recordUndo(!!opts.forceSeparate);
-	this.widget.saveChanges(out.text);
-	this.fixHeight();
 };
 
 FramedEngine.prototype.clearDecorations = function(ownerId) {
@@ -1223,31 +1226,24 @@ FramedEngine.prototype.clearDecorations = function(ownerId) {
 	}
 };
 
-FramedEngine.prototype.getPositionFromMouseEvent = function(event) {
-	if(!event || !this.domNode) return this.domNode.selectionStart || 0;
-
-	if(typeof this.domNode.selectionStart === "number") {
-		return this.domNode.selectionStart;
-	}
-	return 0;
-};
-
 // ==================== EVENT HANDLERS ====================
 
 FramedEngine.prototype.handleCompositionStart = function(event) {
 	if(this._destroyed) return;
+	this.isComposing = true;
 
-	if(this.hasMultipleCursors()) {
-		this.clearSecondaryCursors();
-	}
-
+	// Multi-cursor + IME is a mess: normalize to single cursor
+	if(this.hasMultipleCursors()) this.clearSecondaryCursors();
 	this.captureBeforeState();
 };
 
 FramedEngine.prototype.handleCompositionEnd = function(event) {
 	if(this._destroyed) return;
+	this.isComposing = false;
+
 	this.syncCursorFromDOM();
 	this.lastKnownText = this.domNode.value;
+
 	this.recordUndo(true);
 	this.widget.saveChanges(this.getText());
 	this.fixHeight();
@@ -1268,6 +1264,10 @@ FramedEngine.prototype.handleBeforeInputEvent = function(event) {
 		return;
 	}
 
+	// During IME composition, do not intercept – let the browser handle it
+	if(this.isComposing) return;
+
+	// Multi-cursor intercept for core editing actions
 	if(this.hasMultipleCursors()) {
 		switch(event.inputType) {
 			case "insertText":
@@ -1293,6 +1293,7 @@ FramedEngine.prototype.handleBeforeInputEvent = function(event) {
 				return;
 
 			case "insertFromPaste":
+				// Some browsers provide data on beforeinput; if so, we can handle it
 				if(event.data !== null && event.data !== undefined) {
 					event.preventDefault();
 					this.insertAtAllCursors(event.data);
@@ -1311,28 +1312,10 @@ FramedEngine.prototype.handleInputEvent = function(event) {
 
 	this.syncCursorFromDOM();
 
-	if(this.hasMultipleCursors()) {
-		var newText = this.domNode.value;
-		var oldText = this.lastKnownText;
-
-		if(newText !== oldText && oldText !== undefined) {
-			var selStart = this.lastKnownSelection.start;
-			var selEnd = this.lastKnownSelection.end;
-
-			var expected = oldText.length - (selEnd - selStart);
-			var insertedLen = newText.length - expected;
-
-			if(insertedLen > 0) {
-				var inserted = newText.substring(selStart, selStart + insertedLen);
-				this.domNode.value = oldText;
-				this.insertAtAllCursors(inserted);
-				return true;
-			}
-
-			if(insertedLen < 0) {
-				this.clearSecondaryCursors();
-			}
-		}
+	// If somehow multi-cursor survived into a normal input event, normalize
+	if(this.hasMultipleCursors() && !this.isComposing) {
+		// If browser applied edit to primary only, it desyncs. Best safe behavior: collapse to single.
+		this.clearSecondaryCursors();
 	}
 
 	this.lastKnownText = this.domNode.value;
@@ -1355,7 +1338,7 @@ FramedEngine.prototype.handleInputEvent = function(event) {
 
 FramedEngine.prototype.isModifyingKey = function(event) {
 	if(event.key === "Backspace" || event.key === "Delete") return true;
-	if((event.ctrlKey || event.metaKey) && (event.key === "x" || event.key === "v")) return true;
+	if((event.ctrlKey || event.metaKey) && (String(event.key).toLowerCase() === "x" || String(event.key).toLowerCase() === "v")) return true;
 	return false;
 };
 
@@ -1373,16 +1356,19 @@ FramedEngine.prototype.handleKeydownEvent = function(event) {
 		return true;
 	}
 
+	// Undo/redo
 	if((event.ctrlKey || event.metaKey) && !event.altKey) {
 		var k = String(event.key).toLowerCase();
 		if(!event.shiftKey && k === "z") { event.preventDefault(); this.undo(); return true; }
 		if((!event.shiftKey && k === "y") || (event.shiftKey && k === "z")) { event.preventDefault(); this.redo(); return true; }
 	}
 
+	// Escape collapses multi-cursor
 	if(event.key === "Escape" && this.hasMultipleCursors()) {
 		this.clearSecondaryCursors();
 	}
 
+	// Keyboard manager (TW core)
 	if($tw.keyboardManager.handleKeydownEvent(event,{onlyPriority:true})) {
 		return true;
 	}
@@ -1473,13 +1459,16 @@ FramedEngine.prototype.checkSelectionChange = function() {
 FramedEngine.prototype.handleScrollEvent = function(event) {
 	if(this._destroyed) return;
 
+	// Overlay stays aligned with the scrolled textarea content
 	if(this.overlayNode && this.domNode) {
 		this.overlayNode.style.transform =
-			"translate(-" + this.domNode.scrollLeft + "px, -" + this.domNode.scrollTop + "px)";
+			"translate(-" + (this.domNode.scrollLeft || 0) + "px, -" + (this.domNode.scrollTop || 0) + "px)";
 	}
 
 	this.renderCursors();
 };
+
+// ==================== UTIL ====================
 
 FramedEngine.prototype.fixHeight = function() {
 	this.copyStyles();
@@ -1510,43 +1499,19 @@ FramedEngine.prototype.focus = function() {
 	}
 };
 
-// Refocus without changing selection (for after text operations)
 FramedEngine.prototype.refocus = function() {
 	if(this.domNode && this.domNode.focus) this.domNode.focus();
 };
 
-FramedEngine.prototype.destroy = function() {
-	if(this._destroyed) return;
-	this._destroyed = true;
-
-	this._clearIntervals();
-	this._clearListeners();
-
-	for(var i = 0; i < this.plugins.length; i++) {
-		var plugin = this.plugins[i];
-		if(plugin && plugin.destroy) {
-			try { plugin.destroy(); }
-			catch(e) { console.error("Plugin destroy error:", plugin.name, e); }
-		}
-	}
-
-	this.plugins = [];
-	this.pluginMetadata = {};
-	this.hooks = {};
-	this.cursors = [];
-	this.undoStack = [];
-	this.redoStack = [];
-	this.pendingBeforeState = null;
+FramedEngine.prototype.saveChanges = function() {
+	this.widget.saveChanges(this.getText());
 };
 
-// ==================== UTILITY METHODS ====================
+FramedEngine.prototype.dispatchEvent = function(eventInfo) {
+	this.widget.dispatchEvent(eventInfo);
+};
 
-FramedEngine.prototype.getDocument = function(){ return this.iframeDoc; };
-FramedEngine.prototype.getWindow = function(){ return this.iframeNode && this.iframeNode.contentWindow; };
-FramedEngine.prototype.getWrapperNode = function(){ return this.wrapperNode; };
-FramedEngine.prototype.getOverlayLayer = function(){ return this.overlayNode; };
-FramedEngine.prototype.getDecorationLayer = function(){ return this.decorationLayer; };
-FramedEngine.prototype.getCursorLayer = function(){ return this.cursorLayer; };
+// ==================== HELPERS (LINE/WORD) ====================
 
 FramedEngine.prototype.getLineInfo = function(position) {
 	var text = this.domNode.value || "";
@@ -1588,12 +1553,39 @@ FramedEngine.prototype.getWordBoundsAt = function(position) {
 	return { start: start, end: end, word: text.substring(start, end) };
 };
 
-FramedEngine.prototype.saveChanges = function() {
-	this.widget.saveChanges(this.getText());
-};
+// ==================== API ====================
 
-FramedEngine.prototype.dispatchEvent = function(eventInfo) {
-	this.widget.dispatchEvent(eventInfo);
+FramedEngine.prototype.getDocument = function(){ return this.iframeDoc; };
+FramedEngine.prototype.getWindow = function(){ return this.iframeWin; };
+FramedEngine.prototype.getWrapperNode = function(){ return this.wrapperNode; };
+FramedEngine.prototype.getOverlayLayer = function(){ return this.overlayNode; };
+FramedEngine.prototype.getDecorationLayer = function(){ return this.decorationLayer; };
+FramedEngine.prototype.getCursorLayer = function(){ return this.cursorLayer; };
+
+// ==================== DESTROY ====================
+
+FramedEngine.prototype.destroy = function() {
+	if(this._destroyed) return;
+	this._destroyed = true;
+
+	this._clearIntervals();
+	this._clearListeners();
+
+	for(var i = 0; i < this.plugins.length; i++) {
+		var plugin = this.plugins[i];
+		if(plugin && plugin.destroy) {
+			try { plugin.destroy(); }
+			catch(e) { console.error("Plugin destroy error:", plugin.name, e); }
+		}
+	}
+
+	this.plugins = [];
+	this.pluginMetadata = {};
+	this.hooks = {};
+	this.cursors = [];
+	this.undoStack = [];
+	this.redoStack = [];
+	this.pendingBeforeState = null;
 };
 
 exports.FramedEngine = FramedEngine;

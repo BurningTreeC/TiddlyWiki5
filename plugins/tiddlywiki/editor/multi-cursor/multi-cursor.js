@@ -32,6 +32,7 @@ exports.configTiddlerAlt = "$:/config/EnableMultiCursor";
 exports.defaultEnabled = true;
 exports.description = "Multi-cursor editing with Ctrl+Click, Ctrl+D, and more";
 exports.category = "editing";
+exports.supports = { simple: false, framed: true };
 
 // ==================== PLUGIN IMPLEMENTATION ====================
 

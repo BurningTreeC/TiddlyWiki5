@@ -6,6 +6,13 @@ module-type: library
 Text editor engine based on a simple input or textarea tag.
 Updated with plugin system support for consistency with framed engine.
 
+Production-ready version:
+- Robust plugin metadata incl. exports.supports = { simple: true/false, framed: true/false }
+- Skips unsupported plugins BEFORE instantiation (prevents onRegister crashes)
+- Updates metadata enabled-state on enable/disable
+- Fixes document/window references
+- Hardened DOM/caret coordinate helpers
+
 \*/
 
 "use strict";
@@ -15,6 +22,10 @@ var HEIGHT_VALUE_TITLE = "$:/config/TextEditor/EditorHeight/Height";
 function SimpleEngine(options) {
 	options = options || {};
 	this.widget = options.widget;
+	this.wiki = this.widget && this.widget.wiki;
+	this.document = this.widget && this.widget.document;
+	this.window = this.document && (this.document.defaultView || window);
+
 	this.value = options.value || "";
 	this.parentNode = options.parentNode;
 	this.nextSibling = options.nextSibling;
@@ -71,12 +82,11 @@ SimpleEngine.prototype.createDOM = function() {
 	if($tw.config.htmlUnsafeElements.indexOf(tag) !== -1) {
 		tag = "input";
 	}
-
-	this.domNode = this.widget.document.createElement(tag);
+	this.domNode = this.document.createElement(tag);
 
 	// Set the text
 	if(this.widget.editTag === "textarea") {
-		this.domNode.appendChild(this.widget.document.createTextNode(this.value));
+		this.domNode.appendChild(this.document.createTextNode(this.value));
 	} else {
 		this.domNode.value = this.value;
 	}
@@ -147,33 +157,78 @@ SimpleEngine.prototype.addEventListeners = function() {
 
 // ==================== PLUGIN SYSTEM ====================
 
+SimpleEngine.prototype._normalizeSupports = function(supports) {
+	// Only supported contract: exports.supports = { simple: true/false, framed: true/false }
+	// Default if missing: both true
+	supports = supports || {};
+	return {
+		simple: (supports.simple !== false),
+		framed: (supports.framed !== false)
+	};
+};
+
+SimpleEngine.prototype._setSimpleEnabledInMetadata = function(name, enabled, reason) {
+	if(!name) return;
+	var meta = this.pluginMetadata && this.pluginMetadata[name];
+	if(!meta) return;
+	if(!meta.supports) meta.supports = { simple: true, framed: true };
+	if(!meta.simpleEngine) meta.simpleEngine = { supported: true, enabled: false, reason: "unknown" };
+	meta.simpleEngine.enabled = !!enabled;
+	if(reason) meta.simpleEngine.reason = reason;
+};
+
 SimpleEngine.prototype.initializePlugins = function() {
 	var self = this;
 
-	// Discover and register all editor plugins
 	$tw.modules.forEachModuleOfType("editor-plugin", function(title, module) {
 		if(!module || !module.create) return;
 
-		// Collect metadata from module exports
+		var supports = self._normalizeSupports(module.supports);
+
+		// Build metadata BEFORE instantiation (so we can skip safely)
 		var metadata = {
 			name: module.name || null,
 			configTiddler: module.configTiddler || null,
 			configTiddlerAlt: module.configTiddlerAlt || null,
 			defaultEnabled: module.defaultEnabled !== undefined ? module.defaultEnabled : false,
 			description: module.description || "",
-			category: module.category || "misc"
+			category: module.category || "misc",
+
+			// NEW: supports + engine-state
+			supports: { simple: supports.simple, framed: supports.framed },
+			simpleEngine: {
+				supported: supports.simple,
+				enabled: false,
+				reason: supports.simple ? "loaded" : "unsupported"
+			}
 		};
+
+		// Ensure we have a stable key even if module.name is missing
+		var metaKey = metadata.name || (module.name || title);
+		metadata.name = metaKey;
+		self.pluginMetadata[metaKey] = metadata;
+
+		// Skip unsupported in SimpleEngine BEFORE create() to avoid onRegister crashes
+		if(!supports.simple) return;
 
 		try {
 			var plugin = module.create(self);
 			if(plugin) {
-				// Store metadata by plugin name
 				var pluginName = plugin.name || metadata.name;
-				if(pluginName) {
+
+				// Re-key metadata if plugin instance name differs
+				if(pluginName && pluginName !== metaKey) {
 					metadata.name = pluginName;
 					self.pluginMetadata[pluginName] = metadata;
+					// Keep old key too? No—avoid duplicates
+					try { delete self.pluginMetadata[metaKey]; } catch(e) {}
 				}
+
 				self.registerPlugin(plugin);
+
+				// Initial enabled flag is set later by enablePluginsByConfig(),
+				// but we keep metadata coherent here.
+				self._setSimpleEnabledInMetadata(pluginName, false, "registered");
 			}
 		} catch(e) {
 			console.error("Failed to create editor plugin:", title, e);
@@ -199,7 +254,11 @@ SimpleEngine.prototype.registerPlugin = function(plugin) {
 };
 
 SimpleEngine.prototype.getPlugin = function(name) {
-	return this.plugins.find(function(p) { return p && p.name === name; });
+	for(var i = 0; i < this.plugins.length; i++) {
+		var p = this.plugins[i];
+		if(p && p.name === name) return p;
+	}
+	return null;
 };
 
 SimpleEngine.prototype.hasPlugin = function(name) {
@@ -221,11 +280,19 @@ SimpleEngine.prototype.getPluginConfigTiddlers = function() {
 };
 
 SimpleEngine.prototype.enablePlugin = function(name) {
+	var meta = this.pluginMetadata && this.pluginMetadata[name];
+	// If metadata says unsupported, do nothing
+	if(meta && meta.simpleEngine && meta.simpleEngine.supported === false) {
+		this._setSimpleEnabledInMetadata(name, false, "unsupported");
+		return;
+	}
+
 	var plugin = this.getPlugin(name);
 	if(plugin && plugin.enable) {
 		try { plugin.enable(); }
 		catch(e) { console.error("Plugin enable error:", name, e); }
 	}
+	this._setSimpleEnabledInMetadata(name, true, "enabled");
 };
 
 SimpleEngine.prototype.disablePlugin = function(name) {
@@ -234,17 +301,24 @@ SimpleEngine.prototype.disablePlugin = function(name) {
 		try { plugin.disable(); }
 		catch(e) { console.error("Plugin disable error:", name, e); }
 	}
+	this._setSimpleEnabledInMetadata(name, false, "disabled");
 };
 
 SimpleEngine.prototype.enablePluginsByConfig = function(enabledMap) {
 	for(var name in enabledMap) {
-		if(!this.hasPlugin(name)) continue;
-
+		// If plugin doesn't exist in this engine, we still want metadata to reflect "disabled"
 		var shouldEnable = (enabledMap[name] === "yes" || enabledMap[name] === true);
-		if(shouldEnable) {
-			this.enablePlugin(name);
+
+		if(this.hasPlugin(name)) {
+			if(shouldEnable) this.enablePlugin(name);
+			else this.disablePlugin(name);
 		} else {
-			this.disablePlugin(name);
+			// metadata-only (unsupported or not registered here)
+			var meta = this.pluginMetadata && this.pluginMetadata[name];
+			if(meta && meta.simpleEngine) {
+				meta.simpleEngine.enabled = false;
+				meta.simpleEngine.reason = meta.simpleEngine.supported ? "not_registered" : "unsupported";
+			}
 		}
 	}
 };
@@ -382,7 +456,7 @@ SimpleEngine.prototype.canRedo = function() { return this.redoStack.length > 0; 
 
 SimpleEngine.prototype.getCursors = function() { return this.cursors; };
 SimpleEngine.prototype.getPrimaryCursor = function() { return this.cursors[0]; };
-SimpleEngine.prototype.hasMultipleCursors = function() { return false; }; // Simple engine doesn't support multi-cursor
+SimpleEngine.prototype.hasMultipleCursors = function() { return false; };
 
 SimpleEngine.prototype.syncCursorFromDOM = function() {
 	var primary = this.getPrimaryCursor();
@@ -436,8 +510,7 @@ SimpleEngine.prototype.getText = function() {
 SimpleEngine.prototype.createTextOperation = function() {
 	this.syncCursorFromDOM();
 	var text = this.domNode.value;
-	
-	// Ensure we have a valid cursor
+
 	var primary = this.getPrimaryCursor();
 	if(!primary) {
 		primary = {
@@ -460,9 +533,8 @@ SimpleEngine.prototype.createTextOperation = function() {
 		newSelEnd: null
 	};
 
-	// Return as array for compatibility with multi-cursor operations
-	// Also set properties on array for backward compat with old text operations
 	var ops = [op];
+	// Back-compat fields on array
 	ops.text = op.text;
 	ops.selStart = op.selStart;
 	ops.selEnd = op.selEnd;
@@ -482,58 +554,42 @@ SimpleEngine.prototype.executeTextOperation = function(operations) {
 	// Backward compatibility: old text operations set properties on the array itself
 	if(Array.isArray(operations) && operations.length === 1) {
 		var op0 = operations[0];
-		if(operations.replacement !== null && operations.replacement !== undefined) {
-			op0.replacement = operations.replacement;
-		}
-		if(operations.cutStart !== null && operations.cutStart !== undefined) {
-			op0.cutStart = operations.cutStart;
-		}
-		if(operations.cutEnd !== null && operations.cutEnd !== undefined) {
-			op0.cutEnd = operations.cutEnd;
-		}
-		if(operations.newSelStart !== null && operations.newSelStart !== undefined) {
-			op0.newSelStart = operations.newSelStart;
-		}
-		if(operations.newSelEnd !== null && operations.newSelEnd !== undefined) {
-			op0.newSelEnd = operations.newSelEnd;
-		}
+		if(operations.replacement !== null && operations.replacement !== undefined) op0.replacement = operations.replacement;
+		if(operations.cutStart !== null && operations.cutStart !== undefined) op0.cutStart = operations.cutStart;
+		if(operations.cutEnd !== null && operations.cutEnd !== undefined) op0.cutEnd = operations.cutEnd;
+		if(operations.newSelStart !== null && operations.newSelStart !== undefined) op0.newSelStart = operations.newSelStart;
+		if(operations.newSelEnd !== null && operations.newSelEnd !== undefined) op0.newSelEnd = operations.newSelEnd;
 	}
 
 	var op = opArray[0];
-	if(!op || op.replacement === null || op.replacement === undefined) {
-		return this.domNode.value;
-	}
+	if(!op || op.replacement === null || op.replacement === undefined) return this.domNode.value;
 
 	var hookResult = this.runHooks("beforeOperation", null, opArray);
 	if(hookResult.prevented) return this.domNode.value;
 
 	opArray = hookResult.data;
 	op = opArray[0];
-	if(!op || op.replacement === null || op.replacement === undefined) {
-		return this.domNode.value;
-	}
+	if(!op || op.replacement === null || op.replacement === undefined) return this.domNode.value;
 
 	this.captureBeforeState();
 
 	var text = this.domNode.value;
-	
-	// Handle null/undefined cutStart/cutEnd - default to selection range
+
 	var cutStart = (op.cutStart !== null && op.cutStart !== undefined) ? op.cutStart : op.selStart;
 	var cutEnd = (op.cutEnd !== null && op.cutEnd !== undefined) ? op.cutEnd : op.selEnd;
 	cutStart = Math.max(0, Math.min(cutStart, text.length));
 	cutEnd = Math.max(cutStart, Math.min(cutEnd, text.length));
-	var replacement = String(op.replacement);
 
+	var replacement = String(op.replacement);
 	var newText = text.substring(0, cutStart) + replacement + text.substring(cutEnd);
+
 	this.domNode.value = newText;
 	this.lastKnownText = newText;
 
 	var newSelStart = (op.newSelStart !== null && op.newSelStart !== undefined) ? op.newSelStart : (cutStart + replacement.length);
 	var newSelEnd = (op.newSelEnd !== null && op.newSelEnd !== undefined) ? op.newSelEnd : newSelStart;
 
-	try {
-		this.domNode.setSelectionRange(newSelStart, newSelEnd);
-	} catch(e) {}
+	try { this.domNode.setSelectionRange(newSelStart, newSelEnd); } catch(e) {}
 
 	this.syncCursorFromDOM();
 	this.recordUndo(true);
@@ -563,9 +619,7 @@ SimpleEngine.prototype.insertAtAllCursors = function(insertText) {
 	this.domNode.value = newText;
 	this.lastKnownText = newText;
 
-	try {
-		this.domNode.setSelectionRange(newPos, newPos);
-	} catch(e) {}
+	try { this.domNode.setSelectionRange(newPos, newPos); } catch(e) {}
 
 	this.syncCursorFromDOM();
 	this.recordUndo(true);
@@ -596,9 +650,7 @@ SimpleEngine.prototype.deleteAtAllCursors = function(forward) {
 	this.domNode.value = newText;
 	this.lastKnownText = newText;
 
-	try {
-		this.domNode.setSelectionRange(start, start);
-	} catch(e) {}
+	try { this.domNode.setSelectionRange(start, start); } catch(e) {}
 
 	this.syncCursorFromDOM();
 	this.recordUndo(true);
@@ -711,7 +763,6 @@ SimpleEngine.prototype.handleKeydownEvent = function(event) {
 	}
 
 	this.runHooks("afterKeydown", event, null);
-
 	return false;
 };
 
@@ -802,7 +853,6 @@ SimpleEngine.prototype.focus = function() {
 	}
 };
 
-// Refocus without changing selection (for after text operations)
 SimpleEngine.prototype.refocus = function() {
 	if(this.domNode && this.domNode.focus) this.domNode.focus();
 };
@@ -832,15 +882,101 @@ SimpleEngine.prototype.destroy = function() {
 	this.pendingBeforeState = null;
 };
 
-// Stub methods for framed engine compatibility
-SimpleEngine.prototype.getDocument = function() { return this.widget.document; };
-SimpleEngine.prototype.getWindow = function() { return this.widget.document.defaultView || window; };
+// ==================== Compatibility / API ====================
+
+SimpleEngine.prototype.getDocument = function() { return this.document; };
+SimpleEngine.prototype.getWindow = function() { return this.window; };
 SimpleEngine.prototype.getWrapperNode = function() { return this.parentNode; };
+
+// In SimpleEngine these are intentionally absent; plugins must declare supports.simple=false if they require them
 SimpleEngine.prototype.getOverlayLayer = function() { return null; };
 SimpleEngine.prototype.getDecorationLayer = function() { return null; };
 SimpleEngine.prototype.getCursorLayer = function() { return null; };
-SimpleEngine.prototype.getCoordinatesForPosition = function() { return null; };
-SimpleEngine.prototype.getRectsForRange = function() { return []; };
+
+// Caret coordinates (used for popups like autocomplete)
+SimpleEngine.prototype.getCoordinatesForPosition = function(position) {
+	var textarea = this.domNode;
+	var doc = this.document;
+	var win = this.window;
+	if(!textarea || !doc || !win) return null;
+
+	// Works best with textarea; for input fields we still try
+	var text = textarea.value || "";
+	position = Math.max(0, Math.min(position, text.length));
+
+	var cs = win.getComputedStyle(textarea);
+
+	// Mirror element
+	var mirror = doc.createElement("div");
+	mirror.style.position = "absolute";
+	mirror.style.visibility = "hidden";
+	mirror.style.whiteSpace = "pre-wrap";
+	mirror.style.wordWrap = "break-word";
+	mirror.style.overflowWrap = cs.overflowWrap || "break-word";
+	mirror.style.wordBreak = cs.wordBreak || "normal";
+	mirror.style.boxSizing = cs.boxSizing || "content-box";
+	mirror.style.width = textarea.clientWidth + "px";
+
+	var props = [
+		"fontFamily","fontSize","fontWeight","fontStyle","letterSpacing",
+		"textTransform","wordSpacing","textIndent","lineHeight","tabSize",
+		"paddingTop","paddingRight","paddingBottom","paddingLeft",
+		"borderTopWidth","borderRightWidth","borderBottomWidth","borderLeftWidth"
+	];
+	for(var i = 0; i < props.length; i++) {
+		var p = props[i];
+		mirror.style[p] = cs[p];
+	}
+
+	function esc(s){
+		return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+	}
+
+	var before = esc(text.slice(0, position));
+	// Ensure marker has a box at line ends
+	before = before.replace(/\n$/,"\n\u200b");
+	before = before.replace(/\n/g,"<br/>");
+	before = before.replace(/\t/g,"<span style=\"white-space:pre\">\t</span>");
+
+	var marker = doc.createElement("span");
+	marker.textContent = "\u200b";
+
+	mirror.innerHTML = before;
+	mirror.appendChild(marker);
+
+	var host = textarea.parentNode || doc.body || doc.documentElement;
+	if(!host) return null;
+	host.appendChild(mirror);
+
+	var markerRect = marker.getBoundingClientRect();
+	var mirrorRect = mirror.getBoundingClientRect();
+	var trect = textarea.getBoundingClientRect();
+
+	try { host.removeChild(mirror); } catch(e) {}
+
+	var scrollTop = textarea.scrollTop || 0;
+	var scrollLeft = textarea.scrollLeft || 0;
+
+	var relLeft = (markerRect.left - mirrorRect.left) - scrollLeft;
+	var relTop = (markerRect.top - mirrorRect.top) - scrollTop;
+	var h = markerRect.height || parseFloat(cs.lineHeight) || 16;
+
+	return {
+		left: relLeft,
+		top: relTop,
+		height: h,
+		absLeft: trect.left + relLeft,
+		absTop: trect.top + relTop,
+		absHeight: h
+	};
+};
+
+SimpleEngine.prototype.getRectsForRange = function(start, end) {
+	var c = this.getCoordinatesForPosition(end);
+	if(!c) return [];
+	return [{ left: c.left, top: c.top, width: 1, height: c.height }];
+};
+
 SimpleEngine.prototype.clearDecorations = function() {};
 
 exports.SimpleEngine = SimpleEngine;

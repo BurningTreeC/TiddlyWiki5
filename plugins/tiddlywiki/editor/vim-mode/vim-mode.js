@@ -24,6 +24,7 @@ exports.configTiddlerAlt = "$:/config/EnableVimMode";
 exports.defaultEnabled = false;
 exports.description = "Vim keybinding mode for modal editing";
 exports.category = "input";
+exports.supports = { simple: false, framed: true };
 
 // ==================== PLUGIN IMPLEMENTATION ====================
 
