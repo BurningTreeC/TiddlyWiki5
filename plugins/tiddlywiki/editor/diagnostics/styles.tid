@@ -1,0 +1,32 @@
+title: $:/plugins/tiddlywiki/editor/diagnostics/styles
+tags: $:/tags/Stylesheet
+type: text/vnd.tiddlywiki
+
+\rules only filteredtranscludeinline transcludeinline macrodef macrocallinline macrocallblock
+
+/* Warning badge */
+.tc-diagnostic-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 4px 10px;
+  background: rgba(255, 180, 60, 0.95);
+  color: #111;
+  border-radius: 8px;
+  font: 12px/1.2 system-ui, sans-serif;
+  pointer-events: none;
+  z-index: 50;
+}
+
+/* Future: inline error markers */
+.tc-diagnostic-error {
+  position: absolute;
+  border-bottom: 2px wavy #e53935;
+  pointer-events: none;
+}
+
+.tc-diagnostic-warning {
+  position: absolute;
+  border-bottom: 2px wavy #fb8c00;
+  pointer-events: none;
+}

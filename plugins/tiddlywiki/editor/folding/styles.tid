@@ -1,0 +1,34 @@
+title: $:/plugins/tiddlywiki/editor/folding/styles
+tags: $:/tags/Stylesheet
+type: text/vnd.tiddlywiki
+
+\rules only filteredtranscludeinline transcludeinline macrodef macrocallinline macrocallblock
+
+/* Fold cover (hides content) */
+.tc-fold-cover {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: <<colour background>>;
+  pointer-events: auto;
+  cursor: pointer;
+  z-index: 4;
+}
+
+/* Fold indicator */
+.tc-fold-ellipsis {
+  position: absolute;
+  left: 0;
+  right: 0;
+  padding: 2px 8px;
+  background: rgba(0, 0, 0, 0.06);
+  color: <<colour muted-foreground>>;
+  font: 12px/1.2 system-ui, sans-serif;
+  cursor: pointer;
+  pointer-events: auto;
+  z-index: 5;
+}
+
+.tc-fold-ellipsis:hover {
+  background: rgba(0, 0, 0, 0.1);
+}

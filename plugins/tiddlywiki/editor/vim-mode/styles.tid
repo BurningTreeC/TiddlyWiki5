@@ -1,0 +1,45 @@
+title: $:/plugins/tiddlywiki/editor/vim-mode/styles
+tags: $:/tags/Stylesheet
+type: text/vnd.tiddlywiki
+
+\rules only filteredtranscludeinline transcludeinline macrodef macrocallinline macrocallblock
+
+/* Mode indicator badge */
+.tc-vim-mode-indicator {
+  position: absolute;
+  bottom: -24px;
+  left: 0;
+  padding: 2px 8px;
+  font: bold 12px/1.2 ui-monospace, monospace;
+  color: #fff;
+  border-radius: 0 0 4px 4px;
+  z-index: 100;
+}
+
+/* Command line (ex mode) */
+.tc-vim-command-line {
+  position: absolute;
+  bottom: -24px;
+  left: 0;
+  right: 0;
+  padding: 2px 8px;
+  font: 12px/1.2 ui-monospace, monospace;
+  background: #222;
+  color: #fff;
+  border-radius: 0 0 4px 4px;
+  z-index: 100;
+}
+
+/* Block cursor overlay */
+.tc-vim-block-cursor {
+  position: absolute;
+  background: <<colour primary>>;
+  opacity: 0.5;
+  pointer-events: none;
+  animation: tc-cursor-blink 1s step-end infinite;
+}
+
+/* Hide native caret in normal mode */
+.tc-editor-vim-normal {
+  caret-color: transparent !important;
+}

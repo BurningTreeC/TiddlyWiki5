@@ -1,0 +1,43 @@
+title: $:/plugins/tiddlywiki/editor/search-enhanced/styles
+tags: $:/tags/Stylesheet
+type: text/vnd.tiddlywiki
+
+\rules only filteredtranscludeinline transcludeinline macrodef macrocallinline macrocallblock
+
+/* Search bar container */
+.tc-search-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 6px;
+  background: rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 200;
+}
+
+/* Search input */
+.tc-search-input {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  background: <<colour background>>;
+  color: <<colour foreground>>;
+  font: 13px/1.2 system-ui, sans-serif;
+}
+
+.tc-search-input:focus {
+  outline: 2px solid <<colour primary>>;
+  outline-offset: -1px;
+}
+
+/* Match highlight overlay */
+.tc-search-hit {
+  position: absolute;
+  background: rgba(255, 210, 80, 0.4);
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 3;
+}

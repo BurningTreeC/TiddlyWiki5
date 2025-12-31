@@ -1,0 +1,40 @@
+title: $:/plugins/tiddlywiki/editor/line-numbers/styles
+tags: $:/tags/Stylesheet
+type: text/vnd.tiddlywiki
+
+\rules only filteredtranscludeinline transcludeinline macrodef macrocallinline macrocallblock
+
+/* Gutter container (in iframe) */
+.tc-editor-gutter.tc-gutter-active {
+  display: block !important;
+  min-width: 3em;
+  padding: 0;
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* Line number element */
+.tc-ln {
+  position: absolute;
+  left: 0;
+  right: 0.5em;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--tc-editor-gutter-fg, rgba(0, 0, 0, 0.5));
+  font-size: inherit;
+  overflow: hidden;
+}
+
+/* Active line */
+.tc-ln-active {
+  color: var(--tc-editor-gutter-fg-active, rgba(0, 0, 0, 0.85));
+  font-weight: 600;
+}
+
+/* Focus state */
+.tc-gutter-focus .tc-ln-active {
+  color: var(--tc-editor-cursor, <<colour primary>>);
+}

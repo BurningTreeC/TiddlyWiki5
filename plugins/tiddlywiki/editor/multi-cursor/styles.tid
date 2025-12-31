@@ -1,0 +1,28 @@
+title: $:/plugins/tiddlywiki/editor/multi-cursor/styles
+tags: $:/tags/Stylesheet
+type: text/vnd.tiddlywiki
+
+\rules only filteredtranscludeinline transcludeinline macrodef macrocallinline macrocallblock
+
+/* Secondary cursor caret */
+.tc-cursor {
+  position: absolute;
+  width: 2px;
+  background: <<colour foreground>>;
+  pointer-events: none;
+  z-index: 10;
+  animation: tc-cursor-blink 1s step-end infinite;
+}
+
+/* Secondary selection highlight */
+.tc-selection {
+  position: absolute;
+  background: rgba(100, 150, 255, 0.3);
+  pointer-events: none;
+  z-index: 9;
+}
+
+@keyframes tc-cursor-blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
