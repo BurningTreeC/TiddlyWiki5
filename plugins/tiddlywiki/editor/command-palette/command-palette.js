@@ -328,10 +328,12 @@ CommandPalettePlugin.prototype.destroy = function() {
 CommandPalettePlugin.prototype.injectStyles = function() {
 	if(this.styleEl) return;
 
-	var doc = this.getDocument();
+	// Use parent document for styles (not iframe)
+	var doc = this.getParentDocument();
 	if(!doc) return;
 
 	this.styleEl = doc.createElement("style");
+	this.styleEl.setAttribute("data-tc-cmdpal-styles", "true");
 	this.styleEl.textContent = [
 		"." + PALETTE_CLASS + " {",
 		"  position: absolute;",
@@ -538,12 +540,16 @@ CommandPalettePlugin.prototype.close = function() {
 // ==================== UI CREATION ====================
 
 CommandPalettePlugin.prototype.createUI = function() {
-	var doc = this.getDocument();
-	var wrap = this.engine.wrapperNode || this.engine.parentNode;
-	if(!doc || !wrap) return;
+	// Use parent document for the modal (not iframe)
+	var doc = this.getParentDocument();
+	if(!doc) return;
 
+	// Get editor wrapper position for positioning the palette
+	var wrap = this.engine.wrapperNode || this.engine.parentNode;
+	
 	this.ui = doc.createElement("div");
 	this.ui.className = PALETTE_CLASS;
+	this.ui.setAttribute("data-tc-cmdpal", "true");
 
 	// Input
 	this.input = doc.createElement("input");
@@ -599,7 +605,47 @@ CommandPalettePlugin.prototype.createUI = function() {
 		}
 	});
 
-	wrap.appendChild(this.ui);
+	// Position relative to editor wrapper in parent document
+	this.positionPalette(wrap);
+
+	// Append to parent document body (modal overlay)
+	(doc.body || doc.documentElement).appendChild(this.ui);
+};
+
+/**
+ * Position the palette centered above the editor
+ */
+CommandPalettePlugin.prototype.positionPalette = function(wrap) {
+	if(!this.ui || !wrap) return;
+
+	var win = this.getParentWindow();
+	var wrapRect = wrap.getBoundingClientRect();
+	
+	// Center horizontally over the editor
+	var centerX = wrapRect.left + (wrapRect.width / 2);
+	var paletteWidth = Math.min(500, wrapRect.width * 0.9);
+	var left = centerX - (paletteWidth / 2);
+	
+	// Position near top of editor (but within viewport)
+	var top = wrapRect.top + 50;
+	
+	// Add scroll offsets
+	left += (win.pageXOffset || 0);
+	top += (win.pageYOffset || 0);
+	
+	// Viewport bounds
+	var viewWidth = win.innerWidth || 800;
+	var viewHeight = win.innerHeight || 600;
+	
+	left = Math.max(10, Math.min(left, viewWidth - paletteWidth - 10));
+	top = Math.max(10, top);
+	
+	// Update styles for absolute positioning in body
+	this.ui.style.position = "absolute";
+	this.ui.style.left = left + "px";
+	this.ui.style.top = top + "px";
+	this.ui.style.width = paletteWidth + "px";
+	this.ui.style.transform = "none"; // Override the CSS transform
 };
 
 // ==================== COMMAND BUILDING ====================
@@ -846,7 +892,8 @@ CommandPalettePlugin.prototype.fuzzyScore = function(str, query) {
 CommandPalettePlugin.prototype.render = function() {
 	if(!this.list) return;
 
-	var doc = this.getDocument();
+	// Use parent document since UI is there
+	var doc = this.getParentDocument();
 	this.list.innerHTML = "";
 
 	if(this.filtered.length === 0) {
@@ -1040,6 +1087,28 @@ CommandPalettePlugin.prototype.saveRecentCommands = function() {
 
 // ==================== UTILITIES ====================
 
+/**
+ * Get the PARENT document (main TiddlyWiki page) for UI elements.
+ * The command palette must be in the main document, not inside the iframe.
+ */
+CommandPalettePlugin.prototype.getParentDocument = function() {
+	if(this.engine.widget && this.engine.widget.document) {
+		return this.engine.widget.document;
+	}
+	return document;
+};
+
+/**
+ * Get the parent window.
+ */
+CommandPalettePlugin.prototype.getParentWindow = function() {
+	var doc = this.getParentDocument();
+	return doc ? (doc.defaultView || window) : window;
+};
+
+/**
+ * Get the iframe document (for internal operations).
+ */
 CommandPalettePlugin.prototype.getDocument = function() {
 	if(this.engine.getDocument) {
 		return this.engine.getDocument();

@@ -4,7 +4,7 @@ type: application/javascript
 module-type: library
 
 Factory for constructing text editor widgets with specified engines for the toolbar and non-toolbar cases.
-Extended with dynamic plugin configuration - plugins declare their own config tiddlers.
+Extended with dynamic plugin configuration and comprehensive message handlers for toolbar buttons.
 
 \*/
 
@@ -99,13 +99,61 @@ function editTextWidgetFactory(toolbarEngine,nonToolbarEngine) {
 		}
 
 		this.addEventListeners([
+			// Core operations
 			{type: "tm-edit-text-operation", handler: "handleEditTextOperationMessage"},
 			{type: "tm-editor-undo", handler: "handleUndoMessage"},
 			{type: "tm-editor-redo", handler: "handleRedoMessage"},
+			
+			// Plugin toggles
 			{type: "tm-editor-toggle-vim", handler: "handleToggleVimMessage"},
 			{type: "tm-editor-toggle-preview", handler: "handleTogglePreviewMessage"},
 			{type: "tm-editor-toggle-search", handler: "handleToggleSearchMessage"},
-			{type: "tm-editor-command-palette", handler: "handleCommandPaletteMessage"}
+			{type: "tm-editor-command-palette", handler: "handleCommandPaletteMessage"},
+			
+			// Search
+			{type: "tm-editor-find", handler: "handleFindMessage"},
+			{type: "tm-editor-find-next", handler: "handleFindNextMessage"},
+			{type: "tm-editor-find-previous", handler: "handleFindPreviousMessage"},
+			{type: "tm-editor-find-replace", handler: "handleFindReplaceMessage"},
+			
+			// Folding
+			{type: "tm-editor-fold-section", handler: "handleFoldSectionMessage"},
+			{type: "tm-editor-unfold-section", handler: "handleUnfoldSectionMessage"},
+			{type: "tm-editor-fold-all", handler: "handleFoldAllMessage"},
+			{type: "tm-editor-unfold-all", handler: "handleUnfoldAllMessage"},
+			
+			// Line operations
+			{type: "tm-editor-duplicate-line", handler: "handleDuplicateLineMessage"},
+			{type: "tm-editor-delete-line", handler: "handleDeleteLineMessage"},
+			{type: "tm-editor-move-line-up", handler: "handleMoveLineUpMessage"},
+			{type: "tm-editor-move-line-down", handler: "handleMoveLineDownMessage"},
+			
+			// Multi-cursor
+			{type: "tm-editor-select-next-occurrence", handler: "handleSelectNextOccurrenceMessage"},
+			{type: "tm-editor-select-all-occurrences", handler: "handleSelectAllOccurrencesMessage"},
+			{type: "tm-editor-add-cursor-above", handler: "handleAddCursorAboveMessage"},
+			{type: "tm-editor-add-cursor-below", handler: "handleAddCursorBelowMessage"},
+			
+			// Navigation
+			{type: "tm-editor-goto-line", handler: "handleGotoLineMessage"},
+			{type: "tm-editor-goto-symbol", handler: "handleGotoSymbolMessage"},
+			{type: "tm-editor-jump-to-bracket", handler: "handleJumpToBracketMessage"},
+			
+			// Registers
+			{type: "tm-editor-open-registers", handler: "handleOpenRegistersMessage"},
+			{type: "tm-editor-copy-to-register", handler: "handleCopyToRegisterMessage"},
+			{type: "tm-editor-paste-from-register", handler: "handlePasteFromRegisterMessage"},
+			
+			// History
+			{type: "tm-editor-open-history", handler: "handleOpenHistoryMessage"},
+			
+			// Structural selection
+			{type: "tm-editor-expand-selection", handler: "handleExpandSelectionMessage"},
+			{type: "tm-editor-shrink-selection", handler: "handleShrinkSelectionMessage"},
+			
+			// Smart indent
+			{type: "tm-editor-indent", handler: "handleIndentMessage"},
+			{type: "tm-editor-outdent", handler: "handleOutdentMessage"}
 		]);
 	};
 
@@ -223,7 +271,7 @@ function editTextWidgetFactory(toolbarEngine,nonToolbarEngine) {
 		return {value: value || "", type: type, update: update};
 	};
 
-	// --- messages ------------------------------------------------------
+	// --- messages: core ------------------------------------------------
 
 	EditTextWidget.prototype.handleEditTextOperationMessage = function(event) {
 		var operation = this.engine.createTextOperation();
@@ -246,6 +294,8 @@ function editTextWidgetFactory(toolbarEngine,nonToolbarEngine) {
 		return false;
 	};
 
+	// --- messages: plugin toggles --------------------------------------
+
 	EditTextWidget.prototype.handleToggleVimMessage = function(event) {
 		var vim = this._safeGetPlugin("vim-mode");
 		if(vim) (vim.enabled ? vim.disable() : vim.enable());
@@ -259,14 +309,201 @@ function editTextWidgetFactory(toolbarEngine,nonToolbarEngine) {
 	};
 
 	EditTextWidget.prototype.handleToggleSearchMessage = function(event) {
-		var search = this._safeGetPlugin("search");
+		var search = this._safeGetPlugin("search-enhanced");
+		if(!search) search = this._safeGetPlugin("search");
 		if(search && search.toggle) search.toggle();
+		else if(search && search.open) search.open();
 		return false;
 	};
 
 	EditTextWidget.prototype.handleCommandPaletteMessage = function(event) {
 		var pal = this._safeGetPlugin("command-palette");
 		if(pal && pal.open) pal.open();
+		return false;
+	};
+
+	// --- messages: search ----------------------------------------------
+
+	EditTextWidget.prototype.handleFindMessage = function(event) {
+		var search = this._safeGetPlugin("search-enhanced");
+		if(!search) search = this._safeGetPlugin("search");
+		if(search && search.open) search.open();
+		return false;
+	};
+
+	EditTextWidget.prototype.handleFindNextMessage = function(event) {
+		var search = this._safeGetPlugin("search-enhanced");
+		if(!search) search = this._safeGetPlugin("search");
+		if(search && search.findNext) search.findNext();
+		return false;
+	};
+
+	EditTextWidget.prototype.handleFindPreviousMessage = function(event) {
+		var search = this._safeGetPlugin("search-enhanced");
+		if(!search) search = this._safeGetPlugin("search");
+		if(search && search.findPrevious) search.findPrevious();
+		return false;
+	};
+
+	EditTextWidget.prototype.handleFindReplaceMessage = function(event) {
+		var search = this._safeGetPlugin("search-enhanced");
+		if(!search) search = this._safeGetPlugin("search");
+		if(search && search.openReplace) search.openReplace();
+		else if(search && search.open) search.open();
+		return false;
+	};
+
+	// --- messages: folding ---------------------------------------------
+
+	EditTextWidget.prototype.handleFoldSectionMessage = function(event) {
+		var folding = this._safeGetPlugin("folding");
+		if(folding && folding.foldCurrentSection) folding.foldCurrentSection(true);
+		return false;
+	};
+
+	EditTextWidget.prototype.handleUnfoldSectionMessage = function(event) {
+		var folding = this._safeGetPlugin("folding");
+		if(folding && folding.foldCurrentSection) folding.foldCurrentSection(false);
+		return false;
+	};
+
+	EditTextWidget.prototype.handleFoldAllMessage = function(event) {
+		var folding = this._safeGetPlugin("folding");
+		if(folding && folding.foldAll) folding.foldAll();
+		return false;
+	};
+
+	EditTextWidget.prototype.handleUnfoldAllMessage = function(event) {
+		var folding = this._safeGetPlugin("folding");
+		if(folding && folding.unfoldAll) folding.unfoldAll();
+		return false;
+	};
+
+	// --- messages: line operations -------------------------------------
+
+	EditTextWidget.prototype.handleDuplicateLineMessage = function(event) {
+		var lineBlock = this._safeGetPlugin("line-block");
+		if(lineBlock && lineBlock.duplicateSelectionOrLines) lineBlock.duplicateSelectionOrLines();
+		return false;
+	};
+
+	EditTextWidget.prototype.handleDeleteLineMessage = function(event) {
+		var lineBlock = this._safeGetPlugin("line-block");
+		if(lineBlock && lineBlock.deleteSelectionOrLines) lineBlock.deleteSelectionOrLines();
+		return false;
+	};
+
+	EditTextWidget.prototype.handleMoveLineUpMessage = function(event) {
+		var lineBlock = this._safeGetPlugin("line-block");
+		if(lineBlock && lineBlock.moveSelectionOrLines) lineBlock.moveSelectionOrLines(-1);
+		return false;
+	};
+
+	EditTextWidget.prototype.handleMoveLineDownMessage = function(event) {
+		var lineBlock = this._safeGetPlugin("line-block");
+		if(lineBlock && lineBlock.moveSelectionOrLines) lineBlock.moveSelectionOrLines(1);
+		return false;
+	};
+
+	// --- messages: multi-cursor ----------------------------------------
+
+	EditTextWidget.prototype.handleSelectNextOccurrenceMessage = function(event) {
+		var mc = this._safeGetPlugin("multi-cursor");
+		if(mc && mc.selectNextOccurrence) mc.selectNextOccurrence();
+		return false;
+	};
+
+	EditTextWidget.prototype.handleSelectAllOccurrencesMessage = function(event) {
+		var mc = this._safeGetPlugin("multi-cursor");
+		if(mc && mc.selectAllOccurrences) mc.selectAllOccurrences();
+		return false;
+	};
+
+	EditTextWidget.prototype.handleAddCursorAboveMessage = function(event) {
+		var mc = this._safeGetPlugin("multi-cursor");
+		if(mc && mc.addCursorInDirection) mc.addCursorInDirection(-1);
+		return false;
+	};
+
+	EditTextWidget.prototype.handleAddCursorBelowMessage = function(event) {
+		var mc = this._safeGetPlugin("multi-cursor");
+		if(mc && mc.addCursorInDirection) mc.addCursorInDirection(1);
+		return false;
+	};
+
+	// --- messages: navigation ------------------------------------------
+
+	EditTextWidget.prototype.handleGotoLineMessage = function(event) {
+		var jump = this._safeGetPlugin("jump-navigation");
+		if(jump && jump.openGotoLine) jump.openGotoLine();
+		return false;
+	};
+
+	EditTextWidget.prototype.handleGotoSymbolMessage = function(event) {
+		var jump = this._safeGetPlugin("jump-navigation");
+		if(jump && jump.openGotoSymbol) jump.openGotoSymbol();
+		return false;
+	};
+
+	EditTextWidget.prototype.handleJumpToBracketMessage = function(event) {
+		var jump = this._safeGetPlugin("jump-navigation");
+		if(jump && jump.jumpToMatch) jump.jumpToMatch();
+		return false;
+	};
+
+	// --- messages: registers -------------------------------------------
+
+	EditTextWidget.prototype.handleOpenRegistersMessage = function(event) {
+		var reg = this._safeGetPlugin("registers");
+		if(reg && reg.openPanel) reg.openPanel();
+		return false;
+	};
+
+	EditTextWidget.prototype.handleCopyToRegisterMessage = function(event) {
+		var reg = this._safeGetPlugin("registers");
+		if(reg && reg.copyToRegister) reg.copyToRegister();
+		return false;
+	};
+
+	EditTextWidget.prototype.handlePasteFromRegisterMessage = function(event) {
+		var reg = this._safeGetPlugin("registers");
+		if(reg && reg.pasteFromRegister) reg.pasteFromRegister();
+		return false;
+	};
+
+	// --- messages: history ---------------------------------------------
+
+	EditTextWidget.prototype.handleOpenHistoryMessage = function(event) {
+		var hist = this._safeGetPlugin("edit-history");
+		if(hist && hist.openPicker) hist.openPicker();
+		return false;
+	};
+
+	// --- messages: structural selection --------------------------------
+
+	EditTextWidget.prototype.handleExpandSelectionMessage = function(event) {
+		var ss = this._safeGetPlugin("structural-selection");
+		if(ss && ss.expand) ss.expand();
+		return false;
+	};
+
+	EditTextWidget.prototype.handleShrinkSelectionMessage = function(event) {
+		var ss = this._safeGetPlugin("structural-selection");
+		if(ss && ss.shrink) ss.shrink();
+		return false;
+	};
+
+	// --- messages: smart indent ----------------------------------------
+
+	EditTextWidget.prototype.handleIndentMessage = function(event) {
+		var si = this._safeGetPlugin("smart-indent");
+		if(si && si.indentSelection) si.indentSelection();
+		return false;
+	};
+
+	EditTextWidget.prototype.handleOutdentMessage = function(event) {
+		var si = this._safeGetPlugin("smart-indent");
+		if(si && si.outdent) si.outdent();
 		return false;
 	};
 

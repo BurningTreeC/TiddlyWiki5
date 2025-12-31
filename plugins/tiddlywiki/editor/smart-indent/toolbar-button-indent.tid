@@ -1,0 +1,8 @@
+title: $:/plugins/tiddlywiki/editor/smart-indent/toolbar-buttons/button-indent
+tags: $:/tags/EditorToolbar
+caption: {{$:/plugins/tiddlywiki/editor/smart-indent/toolbar-buttons/icons/indent}} Indent
+condition: [<targetTiddler>!is[shadow]]
+description: Indent selection (Tab)
+icon: $:/plugins/tiddlywiki/editor/smart-indent/toolbar-buttons/icons/indent
+
+<$action-sendmessage $message="tm-editor-indent"/>

@@ -81,15 +81,35 @@ JumpNavigationPlugin.prototype.destroy = function() {
 	this.disable();
 };
 
+// ==================== HELPER METHODS ====================
+
+JumpNavigationPlugin.prototype.getParentDocument = function() {
+	// Get the parent document (where the wrapper lives)
+	if(this.engine.widget && this.engine.widget.document) {
+		return this.engine.widget.document;
+	}
+	return this.engine.getDocument();
+};
+
+JumpNavigationPlugin.prototype.getParentWindow = function() {
+	var doc = this.getParentDocument();
+	return doc && (doc.defaultView || window);
+};
+
 // ==================== STYLES ====================
 
 JumpNavigationPlugin.prototype.injectStyles = function() {
 	if(this.styleEl) return;
 
-	var doc = this.engine.getDocument();
-	if(!doc) return;
+	// Dialog styles go in parent document (where dialog is rendered)
+	var parentDoc = this.getParentDocument();
+	// Breadcrumb/iframe styles go in iframe document
+	var iframeDoc = this.engine.getDocument();
+	
+	if(!parentDoc) return;
 
-	this.styleEl = doc.createElement("style");
+	// Inject dialog styles in parent document
+	this.styleEl = parentDoc.createElement("style");
 	this.styleEl.textContent = [
 		// Dialog styles
 		".tc-jump-dialog {",
@@ -184,27 +204,34 @@ JumpNavigationPlugin.prototype.injectStyles = function() {
 		"  color: var(--tc-jump-footer-fg, #888);",
 		"}",
 
-		// Breadcrumb styles
-		".tc-jump-breadcrumb {",
-		"  position: absolute;",
-		"  top: 4px;",
-		"  left: 60px;",
-		"  padding: 4px 10px;",
-		"  font-size: 11px;",
-		"  font-family: inherit;",
-		"  background: var(--tc-breadcrumb-bg, rgba(0,0,0,0.05));",
-		"  color: var(--tc-breadcrumb-fg, #666);",
-		"  border-radius: 4px;",
-		"  z-index: 15;",
-		"  max-width: 60%;",
-		"  overflow: hidden;",
-		"  text-overflow: ellipsis;",
-		"  white-space: nowrap;",
-		"  pointer-events: none;",
-		"}"
 	].join("\n");
 
-	(doc.head || doc.documentElement).appendChild(this.styleEl);
+	(parentDoc.head || parentDoc.documentElement).appendChild(this.styleEl);
+
+	// Breadcrumb styles go in iframe document (breadcrumb is in decoration layer)
+	if(iframeDoc && iframeDoc !== parentDoc) {
+		this.iframeStyleEl = iframeDoc.createElement("style");
+		this.iframeStyleEl.textContent = [
+			".tc-jump-breadcrumb {",
+			"  position: absolute;",
+			"  top: 4px;",
+			"  left: 60px;",
+			"  padding: 4px 10px;",
+			"  font-size: 11px;",
+			"  font-family: inherit;",
+			"  background: var(--tc-breadcrumb-bg, rgba(0,0,0,0.05));",
+			"  color: var(--tc-breadcrumb-fg, #666);",
+			"  border-radius: 4px;",
+			"  z-index: 15;",
+			"  max-width: 60%;",
+			"  overflow: hidden;",
+			"  text-overflow: ellipsis;",
+			"  white-space: nowrap;",
+			"  pointer-events: none;",
+			"}"
+		].join("\n");
+		(iframeDoc.head || iframeDoc.documentElement).appendChild(this.iframeStyleEl);
+	}
 };
 
 JumpNavigationPlugin.prototype.removeStyles = function() {
@@ -357,7 +384,8 @@ JumpNavigationPlugin.prototype.openDialog = function(mode) {
 
 	this.dialogMode = mode;
 
-	var doc = this.engine.getDocument();
+	// Dialog must be in PARENT document (main TiddlyWiki page)
+	var doc = this.getParentDocument();
 	var wrapper = this.engine.getWrapperNode();
 	if(!doc || !wrapper) return;
 
@@ -971,4 +999,19 @@ JumpNavigationPlugin.prototype.updateBreadcrumb = function() {
 	var breadcrumbText = headings.map(function(h) { return h.text; }).join(" › ");
 	this.breadcrumb.textContent = breadcrumbText;
 	this.breadcrumb.style.display = "block";
+};
+
+// ==================== API ALIASES ====================
+// For factory.js message handler compatibility
+
+JumpNavigationPlugin.prototype.openGotoLine = function() {
+	this.openDialog("line");
+};
+
+JumpNavigationPlugin.prototype.openGotoSymbol = function() {
+	this.openDialog("symbol");
+};
+
+JumpNavigationPlugin.prototype.jumpToMatch = function() {
+	this.jumpToMatchingBracket();
 };

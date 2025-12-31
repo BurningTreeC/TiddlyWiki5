@@ -87,10 +87,30 @@ EditHistoryPlugin.prototype.destroy = function() {
 
 // ==================== STYLES ====================
 
+/**
+ * Get the PARENT document (main TiddlyWiki page) for UI elements.
+ * The panel must be in the main document, not inside the iframe.
+ */
+EditHistoryPlugin.prototype.getParentDocument = function() {
+	if(this.engine.widget && this.engine.widget.document) {
+		return this.engine.widget.document;
+	}
+	return document;
+};
+
+/**
+ * Get the parent window.
+ */
+EditHistoryPlugin.prototype.getParentWindow = function() {
+	var doc = this.getParentDocument();
+	return doc ? (doc.defaultView || window) : window;
+};
+
 EditHistoryPlugin.prototype.injectStyles = function() {
 	if(this.styleEl) return;
 
-	var doc = this.engine.getDocument ? this.engine.getDocument() : document;
+	// Use parent document for styles since panel is there
+	var doc = this.getParentDocument();
 	if(!doc) return;
 
 	this.styleEl = doc.createElement("style");
@@ -439,8 +459,6 @@ EditHistoryPlugin.prototype.scheduleAutoSnapshot = function() {
 };
 
 EditHistoryPlugin.prototype.createNamedCheckpoint = function() {
-	var doc = this.engine.getDocument ? this.engine.getDocument() : document;
-
 	var name = prompt("Checkpoint name:", "Checkpoint " + (this.getNamedCount() + 1));
 	if(name) {
 		this.capture(true, name);
@@ -497,7 +515,8 @@ EditHistoryPlugin.prototype.openPanel = function() {
 	// Capture current state
 	this.capture(false);
 
-	var doc = this.engine.getDocument ? this.engine.getDocument() : document;
+	// Use parent document for panel UI
+	var doc = this.getParentDocument();
 	var wrapper = this.engine.getWrapperNode ? this.engine.getWrapperNode() : this.engine.parentNode;
 	if(!doc || !wrapper) return;
 
@@ -507,6 +526,7 @@ EditHistoryPlugin.prototype.openPanel = function() {
 
 	this.panel = doc.createElement("div");
 	this.panel.className = "tc-history-panel";
+	this.panel.setAttribute("data-tc-history-panel", "true");
 
 	// Header
 	var header = doc.createElement("div");
@@ -588,7 +608,8 @@ EditHistoryPlugin.prototype.closePanel = function() {
 		this.panel.parentNode.removeChild(this.panel);
 	}
 
-	var doc = this.engine.getDocument ? this.engine.getDocument() : document;
+	// Key handler was added to parent document, so remove from there
+	var doc = this.getParentDocument();
 	if(this._keyHandler) {
 		doc.removeEventListener("keydown", this._keyHandler, true);
 		this._keyHandler = null;
@@ -675,7 +696,8 @@ EditHistoryPlugin.prototype.handlePanelKeydown = function(event) {
 EditHistoryPlugin.prototype.renderTimeline = function() {
 	if(!this.timeline) return;
 
-	var doc = this.engine.getDocument ? this.engine.getDocument() : document;
+	// Panel is in parent document
+	var doc = this.getParentDocument();
 	this.timeline.innerHTML = "";
 
 	var self = this;
@@ -761,7 +783,8 @@ EditHistoryPlugin.prototype.renderTimeline = function() {
 EditHistoryPlugin.prototype.updatePreview = function() {
 	if(!this.previewArea || !this.diffArea) return;
 
-	var doc = this.engine.getDocument ? this.engine.getDocument() : document;
+	// Panel is in parent document
+	var doc = this.getParentDocument();
 
 	if(this.compareMode && this.compareIndex >= 0 && this.compareIndex !== this.selectedIndex) {
 		// Show diff
@@ -873,4 +896,11 @@ EditHistoryPlugin.prototype.levenshteinDistance = function(s1, s2) {
 	// Simplified: just return absolute length difference for performance
 	// Full Levenshtein would be too slow for large texts
 	return Math.abs(s1.length - s2.length);
+};
+
+// ==================== API ALIAS ====================
+// For factory.js message handler compatibility
+
+EditHistoryPlugin.prototype.openPicker = function() {
+	this.openPanel();
 };

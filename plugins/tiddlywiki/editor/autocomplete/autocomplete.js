@@ -100,7 +100,7 @@ AutocompletePlugin.prototype.enable = function() {
 
 AutocompletePlugin.prototype.disable = function() {
 	this.enabled = false;
-	this.closePopup(true);
+	this.closePopup();
 	this.removeStyles();
 };
 
@@ -309,7 +309,7 @@ AutocompletePlugin.prototype.onBlur = function() {
 		var iframe = self.getIframeElement();
 		if(iframe && parentActive === iframe) return;
 		
-		self.closePopup(false);
+		self.closePopup();
 	}, 100);
 };
 
@@ -337,7 +337,7 @@ AutocompletePlugin.prototype.onKeydown = function(event) {
 		case "Escape":
 			event.preventDefault();
 			event.stopPropagation();
-			this.closePopup(false);
+			this.closePopup();
 			return false;
 
 		case "ArrowDown":
@@ -401,7 +401,7 @@ AutocompletePlugin.prototype.checkTrigger = function() {
 
 	// Don't trigger if there's a selection
 	if(textarea.selectionStart !== textarea.selectionEnd) {
-		this.closePopup(false);
+		this.closePopup();
 		return;
 	}
 
@@ -410,7 +410,7 @@ AutocompletePlugin.prototype.checkTrigger = function() {
 
 	var match = this.findMatch(text, pos);
 	if(!match) {
-		this.closePopup(false);
+		this.closePopup();
 		return;
 	}
 
@@ -419,7 +419,7 @@ AutocompletePlugin.prototype.checkTrigger = function() {
 	var query = token.slice(rule.prefix.length);
 
 	if(query.length < rule.minChars) {
-		this.closePopup(false);
+		this.closePopup();
 		return;
 	}
 
@@ -476,6 +476,12 @@ AutocompletePlugin.prototype.openOrUpdate = function(rule, prefixStart, query) {
 	this.displayItems = items;
 	this.selectedIndex = 0;
 
+	if(items.length === 0) {
+		// No items - don't show popup
+		this.closePopup();
+		return;
+	}
+
 	if(!this.popup) {
 		this.createPopup();
 	}
@@ -483,14 +489,8 @@ AutocompletePlugin.prototype.openOrUpdate = function(rule, prefixStart, query) {
 	this.renderList();
 	this.updateHeader();
 	this.positionPopup();
-
-	if(items.length > 0) {
-		this.popup.style.display = "block";
-		this.isVisible = true;
-	} else {
-		this.popup.style.display = "none";
-		this.isVisible = false;
-	}
+	this.popup.style.display = "block";
+	this.isVisible = true;
 };
 
 AutocompletePlugin.prototype.getFilteredItems = function(rule, query) {
@@ -1037,25 +1037,20 @@ AutocompletePlugin.prototype.applySelection = function(index) {
 	}
 
 	// Close popup
-	this.closePopup(false);
+	this.closePopup();
 };
 
 // ==================== CLEANUP ====================
 
-AutocompletePlugin.prototype.closePopup = function(remove) {
-	if(this.popup) {
-		if(remove) {
-			if(this.popup.parentNode) {
-				this.popup.parentNode.removeChild(this.popup);
-			}
-			this.popup = null;
-			this.listEl = null;
-			this.headerEl = null;
-			this.footerEl = null;
-		} else {
-			this.popup.style.display = "none";
-		}
+AutocompletePlugin.prototype.closePopup = function() {
+	// Always remove popup from DOM for clean DOM management
+	if(this.popup && this.popup.parentNode) {
+		this.popup.parentNode.removeChild(this.popup);
 	}
+	this.popup = null;
+	this.listEl = null;
+	this.headerEl = null;
+	this.footerEl = null;
 
 	this.isVisible = false;
 	this.activeRule = null;

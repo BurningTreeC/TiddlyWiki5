@@ -1,0 +1,9 @@
+title: $:/plugins/tiddlywiki/editor/search-enhanced/toolbar-buttons/button-search
+tags: $:/tags/EditorToolbar
+caption: {{$:/plugins/tiddlywiki/editor/search-enhanced/toolbar-buttons/icons/search}} Search
+condition: [<targetTiddler>!is[shadow]]
+description: Open search panel (Ctrl+F)
+icon: $:/plugins/tiddlywiki/editor/search-enhanced/toolbar-buttons/icons/search
+shortcuts: ((find))
+
+<$action-sendmessage $message="tm-editor-find"/>

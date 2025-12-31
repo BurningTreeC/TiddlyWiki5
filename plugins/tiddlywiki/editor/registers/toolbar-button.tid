@@ -1,0 +1,8 @@
+title: $:/plugins/tiddlywiki/editor/registers/toolbar-buttons/button-registers
+tags: $:/tags/EditorToolbar
+caption: {{$:/plugins/tiddlywiki/editor/registers/toolbar-buttons/icons/registers}} Registers
+condition: [<targetTiddler>!is[shadow]]
+description: Open register panel
+icon: $:/plugins/tiddlywiki/editor/registers/toolbar-buttons/icons/registers
+
+<$action-sendmessage $message="tm-editor-open-registers"/>

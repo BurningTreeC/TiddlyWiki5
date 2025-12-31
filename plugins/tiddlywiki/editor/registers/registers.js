@@ -115,10 +115,30 @@ RegistersPlugin.prototype.configure = function(options) {
 
 // ==================== STYLES ====================
 
+/**
+ * Get the PARENT document (main TiddlyWiki page) for UI elements.
+ * The panel must be in the main document, not inside the iframe.
+ */
+RegistersPlugin.prototype.getParentDocument = function() {
+	if(this.engine.widget && this.engine.widget.document) {
+		return this.engine.widget.document;
+	}
+	return document;
+};
+
+/**
+ * Get the parent window.
+ */
+RegistersPlugin.prototype.getParentWindow = function() {
+	var doc = this.getParentDocument();
+	return doc ? (doc.defaultView || window) : window;
+};
+
 RegistersPlugin.prototype.injectStyles = function() {
 	if(this.styleEl) return;
 
-	var doc = this.engine.getDocument ? this.engine.getDocument() : document;
+	// Use parent document for styles since panel is there
+	var doc = this.getParentDocument();
 	if(!doc) return;
 
 	this.styleEl = doc.createElement("style");
@@ -349,12 +369,14 @@ RegistersPlugin.prototype.openPanel = function(mode) {
 	this.mode = mode;
 	this.selectedRegister = '"';
 
-	var doc = this.engine.getDocument ? this.engine.getDocument() : document;
+	// Use parent document for panel UI
+	var doc = this.getParentDocument();
 	var wrapper = this.engine.getWrapperNode ? this.engine.getWrapperNode() : this.engine.parentNode;
 	if(!doc || !wrapper) return;
 
 	this.panel = doc.createElement("div");
 	this.panel.className = "tc-registers-panel";
+	this.panel.setAttribute("data-tc-registers-panel", "true");
 
 	// Header
 	var header = doc.createElement("div");
@@ -382,6 +404,8 @@ RegistersPlugin.prototype.openPanel = function(mode) {
 	hints.innerHTML = "<kbd>a-z</kbd> select • <kbd>↵</kbd> confirm • <kbd>Esc</kbd> cancel";
 	footer.appendChild(hints);
 
+	var self = this;
+
 	if(mode === "view") {
 		var clearBtn = doc.createElement("button");
 		clearBtn.textContent = "Clear All";
@@ -396,9 +420,7 @@ RegistersPlugin.prototype.openPanel = function(mode) {
 
 	this.renderList();
 
-	var self = this;
-
-	// Direct key input for register selection
+	// Direct key input for register selection - use parent document
 	this._keyHandler = function(e) {
 		self.handlePanelKeydown(e);
 	};
@@ -410,7 +432,8 @@ RegistersPlugin.prototype.closePanel = function() {
 		this.panel.parentNode.removeChild(this.panel);
 	}
 
-	var doc = this.engine.getDocument ? this.engine.getDocument() : document;
+	// Use parent document for event removal
+	var doc = this.getParentDocument();
 	if(this._keyHandler) {
 		doc.removeEventListener("keydown", this._keyHandler, true);
 		this._keyHandler = null;
@@ -506,7 +529,8 @@ RegistersPlugin.prototype.getAllRegisterKeys = function() {
 RegistersPlugin.prototype.renderList = function() {
 	if(!this.list) return;
 
-	var doc = this.engine.getDocument ? this.engine.getDocument() : document;
+	// Use parent document for UI elements
+	var doc = this.getParentDocument();
 	this.list.innerHTML = "";
 
 	var self = this;
@@ -567,7 +591,8 @@ RegistersPlugin.prototype.renderList = function() {
 };
 
 RegistersPlugin.prototype.renderRegisterItem = function(key, isSpecial) {
-	var doc = this.engine.getDocument ? this.engine.getDocument() : document;
+	// Use parent document for UI elements
+	var doc = this.getParentDocument();
 	var content = this.getRegister(key);
 	var specialInfo = SPECIAL_REGISTERS[key];
 
