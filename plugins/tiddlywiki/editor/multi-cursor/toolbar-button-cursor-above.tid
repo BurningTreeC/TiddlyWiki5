@@ -1,0 +1,8 @@
+title: $:/plugins/tiddlywiki/editor/multi-cursor/toolbar/cursor-above
+tags: $:/tags/EditorToolbar
+caption: {{$:/core/images/up-arrow}} Cursor Up
+description: Add cursor on line above (Alt+Shift+Up)
+condition: [<targetTiddler>!is[shadow]]
+icon: $:/core/images/up-arrow
+
+<$action-sendmessage $message="tm-editor-add-cursor-above"/>

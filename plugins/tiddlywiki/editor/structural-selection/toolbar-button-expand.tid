@@ -1,0 +1,8 @@
+title: $:/plugins/tiddlywiki/editor/structural-selection/toolbar/expand
+tags: $:/tags/EditorToolbar
+caption: {{$:/core/images/full-screen-button}} Expand
+description: Expand selection to next semantic unit (Alt+Shift+Up)
+condition: [<targetTiddler>!is[shadow]]
+icon: $:/core/images/full-screen-button
+
+<$action-sendmessage $message="tm-editor-expand-selection"/>

@@ -1,0 +1,8 @@
+title: $:/plugins/tiddlywiki/editor/line-block/toolbar/move-up
+tags: $:/tags/EditorToolbar
+caption: {{$:/core/images/up-arrow}} Move Up
+description: Move current line up (Alt+Up)
+condition: [<targetTiddler>!is[shadow]]
+icon: $:/core/images/up-arrow
+
+<$action-sendmessage $message="tm-editor-move-line-up"/>

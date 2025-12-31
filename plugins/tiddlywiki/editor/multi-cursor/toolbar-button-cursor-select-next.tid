@@ -1,0 +1,8 @@
+title: $:/plugins/tiddlywiki/editor/multi-cursor/toolbar/select-next
+tags: $:/tags/EditorToolbar
+caption: {{$:/core/images/right-arrow}} Next
+description: Select next occurrence of word/selection (Ctrl+D)
+condition: [<targetTiddler>!is[shadow]]
+icon: $:/core/images/right-arrow
+
+<$action-sendmessage $message="tm-editor-select-next-occurrence"/>

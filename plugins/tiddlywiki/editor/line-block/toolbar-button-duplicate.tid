@@ -1,0 +1,8 @@
+title: $:/plugins/tiddlywiki/editor/line-block/toolbar/duplicate
+tags: $:/tags/EditorToolbar
+caption: {{$:/core/images/copy-clipboard}} Duplicate
+description: Duplicate current line or selection (Ctrl+Shift+D)
+condition: [<targetTiddler>!is[shadow]]
+icon: $:/core/images/copy-clipboard
+
+<$action-sendmessage $message="tm-editor-duplicate-line"/>

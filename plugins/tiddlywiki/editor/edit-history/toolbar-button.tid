@@ -1,9 +1,8 @@
-title: $:/plugins/tiddlywiki/editor/edit-history/toolbar-buttons/button-history
+title: $:/plugins/tiddlywiki/editor/edit-history/toolbar/open
 tags: $:/tags/EditorToolbar
-caption: {{$:/plugins/tiddlywiki/editor/edit-history/toolbar-buttons/icons/history}} History
+caption: {{$:/core/images/timestamp-on}} History
+description: Open edit history browser (Ctrl+Alt+H)
 condition: [<targetTiddler>!is[shadow]]
-description: Open edit history (Ctrl+Alt+H)
-icon: $:/plugins/tiddlywiki/editor-toolbar-buttons/icons/history
-shortcuts: ctrl-alt-H
+icon: $:/core/images/timestamp-on
 
 <$action-sendmessage $message="tm-editor-open-history"/>

@@ -108,6 +108,10 @@ function editTextWidgetFactory(toolbarEngine,nonToolbarEngine) {
 			{type: "tm-editor-toggle-vim", handler: "handleToggleVimMessage"},
 			{type: "tm-editor-toggle-preview", handler: "handleTogglePreviewMessage"},
 			{type: "tm-editor-toggle-search", handler: "handleToggleSearchMessage"},
+			{type: "tm-editor-toggle-smart-pairs", handler: "handleToggleSmartPairsMessage"},
+			{type: "tm-editor-toggle-line-numbers", handler: "handleToggleLineNumbersMessage"},
+			{type: "tm-editor-toggle-autocomplete", handler: "handleToggleAutocompleteMessage"},
+			{type: "tm-editor-toggle-diagnostics", handler: "handleToggleDiagnosticsMessage"},
 			{type: "tm-editor-command-palette", handler: "handleCommandPaletteMessage"},
 			
 			// Search
@@ -313,6 +317,30 @@ function editTextWidgetFactory(toolbarEngine,nonToolbarEngine) {
 		if(!search) search = this._safeGetPlugin("search");
 		if(search && search.toggle) search.toggle();
 		else if(search && search.open) search.open();
+		return false;
+	};
+
+	EditTextWidget.prototype.handleToggleSmartPairsMessage = function(event) {
+		var sp = this._safeGetPlugin("smart-pairs");
+		if(sp) (sp.enabled ? sp.disable() : sp.enable());
+		return false;
+	};
+
+	EditTextWidget.prototype.handleToggleLineNumbersMessage = function(event) {
+		var ln = this._safeGetPlugin("line-numbers");
+		if(ln) (ln.enabled ? ln.disable() : ln.enable());
+		return false;
+	};
+
+	EditTextWidget.prototype.handleToggleAutocompleteMessage = function(event) {
+		var ac = this._safeGetPlugin("autocomplete");
+		if(ac) (ac.enabled ? ac.disable() : ac.enable());
+		return false;
+	};
+
+	EditTextWidget.prototype.handleToggleDiagnosticsMessage = function(event) {
+		var diag = this._safeGetPlugin("diagnostics");
+		if(diag) (diag.enabled ? diag.disable() : diag.enable());
 		return false;
 	};
 

@@ -1,0 +1,8 @@
+title: $:/plugins/tiddlywiki/editor/jump-navigation/toolbar/jump-to-bracket
+tags: $:/tags/EditorToolbar
+caption: [] Bracket
+description: Jump to matching bracket (Alt+[)
+condition: [<targetTiddler>!is[shadow]]
+icon: $:/core/images/brackets
+
+<$action-sendmessage $message="tm-editor-jump-to-bracket"/>

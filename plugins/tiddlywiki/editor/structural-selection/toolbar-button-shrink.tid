@@ -1,0 +1,8 @@
+title: $:/plugins/tiddlywiki/editor/structural-selection/toolbar/shrink
+tags: $:/tags/EditorToolbar
+caption: {{$:/core/images/unfold-button}} Shrink
+description: Shrink selection to previous semantic unit (Alt+Shift+Down)
+condition: [<targetTiddler>!is[shadow]]
+icon: $:/core/images/unfold-button
+
+<$action-sendmessage $message="tm-editor-shrink-selection"/>

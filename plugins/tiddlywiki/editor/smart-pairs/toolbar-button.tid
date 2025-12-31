@@ -1,0 +1,8 @@
+title: $:/plugins/tiddlywiki/editor/smart-pairs/toolbar/toggle
+tags: $:/tags/EditorToolbar
+caption: () Pairs
+description: Toggle auto bracket/quote pairing
+condition: [<targetTiddler>!is[shadow]]
+icon: $:/core/images/brackets
+
+<$action-sendmessage $message="tm-editor-toggle-smart-pairs"/>

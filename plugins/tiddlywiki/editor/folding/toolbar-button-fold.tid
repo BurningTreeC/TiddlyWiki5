@@ -1,0 +1,8 @@
+title: $:/plugins/tiddlywiki/editor/folding/toolbar/fold
+tags: $:/tags/EditorToolbar
+caption: {{$:/core/images/fold-button}} Fold
+description: Fold current section (Ctrl+Shift+[)
+condition: [<targetTiddler>!is[shadow]]
+icon: $:/core/images/fold-button
+
+<$action-sendmessage $message="tm-editor-fold-section"/>

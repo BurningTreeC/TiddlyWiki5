@@ -1,9 +1,8 @@
-title: $:/plugins/tiddlywiki/editor/command-palette/toolbar-buttons/button-command-palette
+title: $:/plugins/tiddlywiki/editor/command-palette/toolbar/open
 tags: $:/tags/EditorToolbar
-caption: {{$:/plugins/tiddlywiki/editor/command-palette/toolbar-buttons/icons/command-palette}} Commands
-condition: [<targetTiddler>!is[shadow]]
+caption: {{$:/core/images/palette}} Commands
 description: Open command palette (Ctrl+Shift+P)
-icon: $:/plugins/tiddlywiki/editor-toolbar-buttons/icons/command-palette
-shortcuts: ctrl-shift-P
+condition: [<targetTiddler>!is[shadow]]
+icon: $:/core/images/palette
 
 <$action-sendmessage $message="tm-editor-command-palette"/>

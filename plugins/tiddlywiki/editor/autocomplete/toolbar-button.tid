@@ -1,0 +1,8 @@
+title: $:/plugins/tiddlywiki/editor/autocomplete/toolbar/toggle
+tags: $:/tags/EditorToolbar
+caption: {{$:/core/images/auto-height}} Auto
+description: Toggle autocomplete suggestions
+condition: [<targetTiddler>!is[shadow]]
+icon: $:/core/images/auto-height
+
+<$action-sendmessage $message="tm-editor-toggle-autocomplete"/>

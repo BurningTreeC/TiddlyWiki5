@@ -1,0 +1,8 @@
+title: $:/plugins/tiddlywiki/editor/line-block/toolbar/move-down
+tags: $:/tags/EditorToolbar
+caption: {{$:/core/images/down-arrow}} Move Down
+description: Move current line down (Alt+Down)
+condition: [<targetTiddler>!is[shadow]]
+icon: $:/core/images/down-arrow
+
+<$action-sendmessage $message="tm-editor-move-line-down"/>

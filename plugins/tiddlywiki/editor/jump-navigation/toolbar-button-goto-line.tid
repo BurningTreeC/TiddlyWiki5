@@ -1,0 +1,8 @@
+title: $:/plugins/tiddlywiki/editor/jump-navigation/toolbar/goto-line
+tags: $:/tags/EditorToolbar
+caption: # Line
+description: Go to line number (Ctrl+G)
+condition: [<targetTiddler>!is[shadow]]
+icon: $:/core/images/list-number
+
+<$action-sendmessage $message="tm-editor-goto-line"/>

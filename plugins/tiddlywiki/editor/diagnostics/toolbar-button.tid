@@ -1,0 +1,8 @@
+title: $:/plugins/tiddlywiki/editor/diagnostics/toolbar/toggle
+tags: $:/tags/EditorToolbar
+caption: {{$:/core/images/warning}} Diag
+description: Toggle real-time syntax diagnostics
+condition: [<targetTiddler>!is[shadow]]
+icon: $:/core/images/warning
+
+<$action-sendmessage $message="tm-editor-toggle-diagnostics"/>

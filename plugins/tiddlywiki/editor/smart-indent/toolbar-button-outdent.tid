@@ -1,8 +1,8 @@
-title: $:/plugins/tiddlywiki/editor/smart-indent/toolbar-buttons/button-outdent
+title: $:/plugins/tiddlywiki/editor/smart-indent/toolbar/outdent
 tags: $:/tags/EditorToolbar
-caption: {{$:/plugins/tiddlywiki/editor/smart-indent/toolbar-buttons/icons/outdent}} Outdent
-condition: [<targetTiddler>!is[shadow]]
+caption: {{$:/core/images/outdent}} Outdent
 description: Outdent selection (Shift+Tab)
-icon: $:/plugins/tiddlywiki/editor/smart-indent/toolbar-buttons/icons/outdent
+condition: [<targetTiddler>!is[shadow]]
+icon: $:/core/images/outdent
 
 <$action-sendmessage $message="tm-editor-outdent"/>

@@ -1,0 +1,8 @@
+title: $:/plugins/tiddlywiki/editor/multi-cursor/toolbar/cursor-below
+tags: $:/tags/EditorToolbar
+caption: {{$:/core/images/down-arrow}} Cursor Down
+description: Add cursor on line below (Alt+Shift+Down)
+condition: [<targetTiddler>!is[shadow]]
+icon: $:/core/images/down-arrow
+
+<$action-sendmessage $message="tm-editor-add-cursor-below"/>

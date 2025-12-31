@@ -1,0 +1,8 @@
+title: $:/plugins/tiddlywiki/editor/folding/toolbar/unfold-all
+tags: $:/tags/EditorToolbar
+caption: {{$:/core/images/unfold-all-button}} Unfold All
+description: Unfold all sections in document
+condition: [<targetTiddler>!is[shadow]]
+icon: $:/core/images/unfold-all-button
+
+<$action-sendmessage $message="tm-editor-unfold-all"/>

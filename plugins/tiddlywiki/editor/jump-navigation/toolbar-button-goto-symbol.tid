@@ -1,0 +1,8 @@
+title: $:/plugins/tiddlywiki/editor/jump-navigation/toolbar/goto-symbol
+tags: $:/tags/EditorToolbar
+caption: @ Symbol
+description: Go to heading/symbol (Ctrl+Shift+O)
+condition: [<targetTiddler>!is[shadow]]
+icon: $:/core/images/heading-1
+
+<$action-sendmessage $message="tm-editor-goto-symbol"/>

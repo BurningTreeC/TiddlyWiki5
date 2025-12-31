@@ -1,9 +1,8 @@
-title: $:/plugins/tiddlywiki/editor/search-enhanced/toolbar-buttons/button-search
+title: $:/plugins/tiddlywiki/editor/search-enhanced/toolbar/toggle
 tags: $:/tags/EditorToolbar
-caption: {{$:/plugins/tiddlywiki/editor/search-enhanced/toolbar-buttons/icons/search}} Search
+caption: {{$:/core/images/advanced-search-button}} Search
+description: Open search bar (Ctrl+F)
 condition: [<targetTiddler>!is[shadow]]
-description: Open search panel (Ctrl+F)
-icon: $:/plugins/tiddlywiki/editor/search-enhanced/toolbar-buttons/icons/search
-shortcuts: ((find))
+icon: $:/core/images/advanced-search-button
 
-<$action-sendmessage $message="tm-editor-find"/>
+<$action-sendmessage $message="tm-editor-toggle-search"/>

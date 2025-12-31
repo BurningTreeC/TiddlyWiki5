@@ -1,0 +1,8 @@
+title: $:/plugins/tiddlywiki/editor/multi-cursor/toolbar/select-all
+tags: $:/tags/EditorToolbar
+caption: {{$:/core/images/list-bullet}} All
+description: Select all occurrences of word/selection (Ctrl+Shift+L)
+condition: [<targetTiddler>!is[shadow]]
+icon: $:/core/images/list-bullet
+
+<$action-sendmessage $message="tm-editor-select-all-occurrences"/>

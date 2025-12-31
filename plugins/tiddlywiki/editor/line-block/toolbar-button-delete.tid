@@ -1,0 +1,8 @@
+title: $:/plugins/tiddlywiki/editor/line-block/toolbar/delete
+tags: $:/tags/EditorToolbar
+caption: {{$:/core/images/delete-button}} Delete Line
+description: Delete current line or selection (Ctrl+Shift+K)
+condition: [<targetTiddler>!is[shadow]]
+icon: $:/core/images/delete-button
+
+<$action-sendmessage $message="tm-editor-delete-line"/>

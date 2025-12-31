@@ -1,0 +1,8 @@
+title: $:/plugins/tiddlywiki/editor/line-numbers/toolbar/toggle
+tags: $:/tags/EditorToolbar
+caption: # Lines
+description: Toggle line numbers in gutter
+condition: [<targetTiddler>!is[shadow]]
+icon: $:/core/images/list-number
+
+<$action-sendmessage $message="tm-editor-toggle-line-numbers"/>

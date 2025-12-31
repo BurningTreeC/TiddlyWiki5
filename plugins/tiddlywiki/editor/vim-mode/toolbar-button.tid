@@ -1,8 +1,8 @@
-title: $:/plugins/tiddlywiki/editor/vim-mode/toolbar-buttons/button-vim-toggle
+title: $:/plugins/tiddlywiki/editor/vim-mode/toolbar/toggle
 tags: $:/tags/EditorToolbar
-caption: {{$:/plugins/tiddlywiki/editor/vim-mode/toolbar-buttons/icons/vim}} Vim
+caption: Vi Vim
+description: Toggle Vim keybindings mode
 condition: [<targetTiddler>!is[shadow]]
-description: Toggle Vim mode
-icon: $:/plugins/tiddlywiki/editor/vim-mode/toolbar-buttons/icons/vim
+icon: $:/core/images/keyboard-shortcut
 
 <$action-sendmessage $message="tm-editor-toggle-vim"/>
