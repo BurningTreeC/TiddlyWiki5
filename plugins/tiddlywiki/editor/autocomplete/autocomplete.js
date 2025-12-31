@@ -285,7 +285,6 @@ AutocompletePlugin.prototype.onBlur = function() {
 	if(!this.popup) return;
 
 	// Delay to allow click events on popup
-	var self = this;
 	setTimeout(function() {
 		if(!self.popup) return;
 		
@@ -862,6 +861,22 @@ AutocompletePlugin.prototype.escapeHtml = function(str) {
 
 // ==================== POSITIONING ====================
 
+/**
+ * Position the popup near the caret.
+ * 
+ * Key insight: coords from getCoordinatesForPosition() are relative to
+ * the textarea's content area (already scroll-corrected).
+ * 
+ * For framed engine:
+ *   - Get iframe position in parent viewport (iframeRect)
+ *   - Get textarea padding offset within iframe
+ *   - Add coords (relative to textarea content)
+ *   - Add parent document scroll for absolute positioning
+ * 
+ * For simple engine:
+ *   - Use absLeft/absTop if provided (already viewport-relative)
+ *   - Otherwise compute from textareaRect + coords
+ */
 AutocompletePlugin.prototype.positionPopup = function() {
 	if(!this.popup) return;
 
@@ -877,47 +892,59 @@ AutocompletePlugin.prototype.positionPopup = function() {
 
 	// Check if we're in an iframe (framed engine)
 	var iframe = this.getIframeElement();
-	var iframeRect = null;
 	
-	if(iframe) {
-		// Get iframe's position in the parent document
-		iframeRect = iframe.getBoundingClientRect();
-	}
-
 	// Get caret coordinates relative to textarea content area
 	var coords = null;
 	if(this.engine.getCoordinatesForPosition) {
 		coords = this.engine.getCoordinatesForPosition(pos);
 	}
 
-	// Get textarea rect (relative to its document - could be iframe or main)
-	var textareaRect = textarea.getBoundingClientRect();
-	
 	var left, top;
+	var lineHeight = (coords && coords.height) || 16;
 
-	if(iframe && iframeRect) {
-		// FRAMED ENGINE: Transform coordinates from iframe to parent document
-		if(coords) {
-			// coords.left/top are relative to textarea content area
-			// textareaRect is relative to iframe viewport
-			// iframeRect is relative to parent viewport
-			left = iframeRect.left + textareaRect.left + coords.left;
-			top = iframeRect.top + textareaRect.top + coords.top + (coords.height || 16);
-		} else {
-			// Fallback: position below textarea
-			left = iframeRect.left + textareaRect.left;
-			top = iframeRect.top + textareaRect.bottom;
+	if(iframe) {
+		// =============== FRAMED ENGINE ===============
+		// iframe position in parent viewport
+		var iframeRect = iframe.getBoundingClientRect();
+		
+		// Get textarea's padding/border offset within iframe
+		// coords are relative to content area, so we need to add padding
+		var iframeWin = this.engine.getWindow ? this.engine.getWindow() : null;
+		var paddingTop = 0;
+		var paddingLeft = 0;
+		
+		if(iframeWin) {
+			try {
+				var cs = iframeWin.getComputedStyle(textarea);
+				paddingTop = parseFloat(cs.paddingTop) || 0;
+				paddingLeft = parseFloat(cs.paddingLeft) || 0;
+			} catch(e) {}
 		}
+		
+		if(coords) {
+			// coords.left/top are relative to textarea content (after padding, scroll-corrected)
+			// We need: iframe position + padding offset + coords
+			left = iframeRect.left + paddingLeft + coords.left;
+			top = iframeRect.top + paddingTop + coords.top + lineHeight;
+		} else {
+			// Fallback: position at top-left of iframe
+			left = iframeRect.left + paddingLeft;
+			top = iframeRect.top + paddingTop + lineHeight;
+		}
+		
 	} else {
-		// SIMPLE ENGINE: Direct coordinates
+		// =============== SIMPLE ENGINE ===============
+		var textareaRect = textarea.getBoundingClientRect();
+		
 		if(coords) {
 			if(coords.absLeft !== undefined) {
-				// Simple engine provides absolute coordinates
+				// Simple engine may provide absolute coordinates
 				left = coords.absLeft;
-				top = coords.absTop + (coords.absHeight || coords.height || 16);
+				top = coords.absTop + (coords.absHeight || lineHeight);
 			} else {
+				// coords are relative to textarea content
 				left = textareaRect.left + coords.left;
-				top = textareaRect.top + coords.top + (coords.height || 16);
+				top = textareaRect.top + coords.top + lineHeight;
 			}
 		} else {
 			left = textareaRect.left;
@@ -925,39 +952,44 @@ AutocompletePlugin.prototype.positionPopup = function() {
 		}
 	}
 
-	// Add scroll offsets of the PARENT window
-	left += (parentWin.pageXOffset || parentWin.scrollX || 0);
-	top += (parentWin.pageYOffset || parentWin.scrollY || 0);
+	// Add scroll offsets for absolute positioning in document
+	var scrollX = parentWin.pageXOffset || parentWin.scrollX || 0;
+	var scrollY = parentWin.pageYOffset || parentWin.scrollY || 0;
+	left += scrollX;
+	top += scrollY;
 
 	// Ensure popup stays within parent viewport
+	this.popup.style.left = "0px";
+	this.popup.style.top = "0px";
+	this.popup.style.display = "block";
+	
 	var popupRect = this.popup.getBoundingClientRect();
 	var viewWidth = parentWin.innerWidth || parentDoc.documentElement.clientWidth;
 	var viewHeight = parentWin.innerHeight || parentDoc.documentElement.clientHeight;
 
-	// Horizontal bounds
-	if(left + popupRect.width > viewWidth - 10) {
-		left = Math.max(10, viewWidth - popupRect.width - 10);
+	// Horizontal bounds check
+	if(left - scrollX + popupRect.width > viewWidth - 10) {
+		left = Math.max(scrollX + 10, scrollX + viewWidth - popupRect.width - 10);
 	}
-	if(left < 10) {
-		left = 10;
+	if(left < scrollX + 10) {
+		left = scrollX + 10;
 	}
 
 	// Vertical bounds: flip above if no room below
-	var lineHeight = (coords && coords.height) || 16;
-	if(top + popupRect.height > viewHeight - 10) {
+	if(top - scrollY + popupRect.height > viewHeight - 10) {
 		// Try to position above the caret
-		var caretTop = top - lineHeight;
-		var above = caretTop - popupRect.height - 5;
-		if(above > 10) {
-			top = above + (parentWin.pageYOffset || parentWin.scrollY || 0);
+		var aboveTop = top - popupRect.height - lineHeight - 5;
+		if(aboveTop - scrollY > 10) {
+			top = aboveTop;
 		}
 	}
 
 	this.popup.style.left = Math.max(0, left) + "px";
 	this.popup.style.top = Math.max(0, top) + "px";
 	
-	// Width based on iframe or textarea
-	var containerWidth = iframe ? iframeRect.width : textareaRect.width;
+	// Set reasonable width
+	var containerWidth = iframe ? iframe.getBoundingClientRect().width : 
+	                     (textarea ? textarea.getBoundingClientRect().width : 300);
 	this.popup.style.minWidth = Math.max(160, containerWidth * 0.3) + "px";
 };
 
