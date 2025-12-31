@@ -865,13 +865,12 @@ AutocompletePlugin.prototype.escapeHtml = function(str) {
  * Position the popup near the caret.
  * 
  * Key insight: coords from getCoordinatesForPosition() are relative to
- * the textarea's content area (already scroll-corrected).
+ * the textarea's VISIBLE content area (already scroll-corrected).
  * 
- * For framed engine:
- *   - Get iframe position in parent viewport (iframeRect)
- *   - Get textarea padding offset within iframe
- *   - Add coords (relative to textarea content)
- *   - Add parent document scroll for absolute positioning
+ * For framed engine with fixed height:
+ *   - Use wrapperNode as the positioning reference (it's in parent doc)
+ *   - coords are relative to visible content, so add to wrapper position
+ *   - Clamp popup to stay within visible wrapper bounds
  * 
  * For simple engine:
  *   - Use absLeft/absTop if provided (already viewport-relative)
@@ -892,6 +891,7 @@ AutocompletePlugin.prototype.positionPopup = function() {
 
 	// Check if we're in an iframe (framed engine)
 	var iframe = this.getIframeElement();
+	var wrapper = this.engine.wrapperNode || null;
 	
 	// Get caret coordinates relative to textarea content area
 	var coords = null;
@@ -902,13 +902,13 @@ AutocompletePlugin.prototype.positionPopup = function() {
 	var left, top;
 	var lineHeight = (coords && coords.height) || 16;
 
-	if(iframe) {
+	if(iframe && wrapper) {
 		// =============== FRAMED ENGINE ===============
-		// iframe position in parent viewport
-		var iframeRect = iframe.getBoundingClientRect();
+		// Use wrapper as positioning reference - it's in the parent document
+		// and represents the visible editor area
+		var wrapperRect = wrapper.getBoundingClientRect();
 		
-		// Get textarea's padding/border offset within iframe
-		// coords are relative to content area, so we need to add padding
+		// Get textarea's padding offset
 		var iframeWin = this.engine.getWindow ? this.engine.getWindow() : null;
 		var paddingTop = 0;
 		var paddingLeft = 0;
@@ -922,14 +922,45 @@ AutocompletePlugin.prototype.positionPopup = function() {
 		}
 		
 		if(coords) {
-			// coords.left/top are relative to textarea content (after padding, scroll-corrected)
-			// We need: iframe position + padding offset + coords
-			left = iframeRect.left + paddingLeft + coords.left;
-			top = iframeRect.top + paddingTop + coords.top + lineHeight;
+			// coords.left/top are relative to textarea's visible content area
+			// (already scroll-corrected by getCoordinatesForPosition)
+			// 
+			// wrapperRect gives us the wrapper's position in parent viewport
+			// We add padding + coords to get the caret position
+			left = wrapperRect.left + paddingLeft + coords.left;
+			top = wrapperRect.top + paddingTop + coords.top + lineHeight;
+			
+			// Check if caret is within visible wrapper bounds
+			// If coords.top is negative or beyond wrapper height, the caret is scrolled out of view
+			var caretVisibleTop = wrapperRect.top + paddingTop + coords.top;
+			var caretVisibleBottom = caretVisibleTop + lineHeight;
+			
+			if(caretVisibleTop < wrapperRect.top || caretVisibleBottom > wrapperRect.bottom) {
+				// Caret is scrolled out of visible area - position popup at wrapper edge
+				if(coords.top < 0) {
+					// Scrolled up - show at top of wrapper
+					top = wrapperRect.top + lineHeight;
+				} else {
+					// Scrolled down - show at bottom of wrapper
+					top = wrapperRect.bottom;
+				}
+			}
 		} else {
-			// Fallback: position at top-left of iframe
-			left = iframeRect.left + paddingLeft;
-			top = iframeRect.top + paddingTop + lineHeight;
+			// Fallback: position at top-left of wrapper
+			left = wrapperRect.left + paddingLeft;
+			top = wrapperRect.top + paddingTop + lineHeight;
+		}
+		
+	} else if(iframe) {
+		// Framed engine without wrapper reference - fallback to iframe
+		var iframeRect = iframe.getBoundingClientRect();
+		
+		if(coords) {
+			left = iframeRect.left + coords.left;
+			top = iframeRect.top + coords.top + lineHeight;
+		} else {
+			left = iframeRect.left;
+			top = iframeRect.bottom;
 		}
 		
 	} else {
@@ -958,7 +989,7 @@ AutocompletePlugin.prototype.positionPopup = function() {
 	left += scrollX;
 	top += scrollY;
 
-	// Ensure popup stays within parent viewport
+	// Measure popup size
 	this.popup.style.left = "0px";
 	this.popup.style.top = "0px";
 	this.popup.style.display = "block";
@@ -987,9 +1018,17 @@ AutocompletePlugin.prototype.positionPopup = function() {
 	this.popup.style.left = Math.max(0, left) + "px";
 	this.popup.style.top = Math.max(0, top) + "px";
 	
-	// Set reasonable width
-	var containerWidth = iframe ? iframe.getBoundingClientRect().width : 
-	                     (textarea ? textarea.getBoundingClientRect().width : 300);
+	// Set reasonable width based on wrapper or textarea
+	var containerWidth;
+	if(wrapper) {
+		containerWidth = wrapper.getBoundingClientRect().width;
+	} else if(iframe) {
+		containerWidth = iframe.getBoundingClientRect().width;
+	} else if(textarea) {
+		containerWidth = textarea.getBoundingClientRect().width;
+	} else {
+		containerWidth = 300;
+	}
 	this.popup.style.minWidth = Math.max(160, containerWidth * 0.3) + "px";
 };
 
