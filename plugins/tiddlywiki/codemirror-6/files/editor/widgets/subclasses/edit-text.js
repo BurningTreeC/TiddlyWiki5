@@ -978,6 +978,9 @@ exports.prototype.refresh = function(changedTiddlers) {
 	Object.keys(changedTiddlers).forEach(function(t) {
 		if(t.indexOf("$:/config/codemirror-6/") === 0) settingsChanged = true;
 		if(t.indexOf("$:/state/codemirror-6/translate/") === 0) settingsChanged = true;
+		$tw.keyboardManager.lookupNames.forEach(function(prefix) {
+			if(t.indexOf("$:/config/" + prefix + "/cm6-add-cursor-") === 0) settingsChanged = true;
+		});
 	});
 	if(settingsChanged) {
 		this.applyEngineSettings();
