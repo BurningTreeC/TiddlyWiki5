@@ -1,0 +1,11 @@
+title: $:/changenotes/5.5.0/#5
+tags: $:/tags/ChangeNote
+change-type: bugfix
+change-category: usability
+description: Fix configurable CodeMirror 6 multi-cursor shortcuts
+release: 5.5.0
+github-links: https://github.com/BurningTreeC/TiddlyWiki5/pull/5
+github-contributors: m1m0ry
+type: text/vnd.tiddlywiki
+
+CodeMirror 6 add-cursor shortcuts now honor configured keys, platform settings and empty bindings, and update immediately in open editors.
