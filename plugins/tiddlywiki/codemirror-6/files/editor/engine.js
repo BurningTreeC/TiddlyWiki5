@@ -123,7 +123,10 @@ function getCachedExtensions() {
 		var defaultKeymap = (core.commands || {}).defaultKeymap || [];
 		var indentWithTab = (core.commands || {}).indentWithTab;
 		var km = [];
-		if(defaultKeymap.length) km = km.concat(defaultKeymap);
+		// Multi-cursor bindings belong to the configurable compartment below.
+		if(defaultKeymap.length) km = km.concat(defaultKeymap.filter(function(binding) {
+			return binding.run !== core.commands.addCursorAbove && binding.run !== core.commands.addCursorBelow;
+		}));
 		if(indentWithTab) km.push(indentWithTab);
 		if(km.length) {
 			_defaultKeymapExtension = cmKeymap.of(km);
@@ -186,7 +189,7 @@ function isComposingInput(view) {
 /**
  * Convert TiddlyWiki shortcut format to CodeMirror format
  * TW format: "ctrl-shift-Z" (lowercase modifiers)
- * CM format: "Ctrl-Shift-Z" (PascalCase modifiers)
+ * CM format: "Ctrl-Shift-z" (PascalCase modifiers, unshifted letters)
  */
 function twShortcutToCM(twShortcut) {
 	if(!twShortcut) return null;
@@ -201,7 +204,13 @@ function twShortcutToCM(twShortcut) {
 		if(lower === "ctrl") return "Ctrl";
 		if(lower === "alt") return "Alt";
 		if(lower === "shift") return "Shift";
-		if(lower === "cmd" || lower === "meta" || lower === "mod") return "Mod";
+		if(lower === "cmd" || lower === "meta" || lower === "win") return "Meta";
+		if(lower === "mod") return "Mod";
+		var namedKeys = {up: "ArrowUp", down: "ArrowDown", left: "ArrowLeft", right: "ArrowRight",
+			esc: "Escape", del: "Delete", pageup: "PageUp", pagedown: "PageDown", space: "Space"};
+		if(namedKeys[lower]) return namedKeys[lower];
+		// CM matches modified letters against the unshifted key name.
+		if(part.length === 1 && /^[a-z]$/i.test(part)) return lower;
 		// For keys like "enter", "tab", etc., capitalize first letter
 		if(part.length > 1 && /^[a-z]+$/.test(part)) {
 			return part.charAt(0).toUpperCase() + part.slice(1);
@@ -221,6 +230,23 @@ function getShortcut(wiki, name, defaultShortcut) {
 		return twShortcutToCM(configValue);
 	}
 	return defaultShortcut;
+}
+
+/** Resolve all bindings for the current TW platform, including an empty list. */
+function getShortcuts(wiki, name, defaultShortcut) {
+	var manager = $tw.keyboardManager;
+	if(wiki && manager) {
+		var configured = manager.lookupNames.some(function(prefix) {
+			return wiki.getTiddlerText("$:/config/" + prefix + "/cm6-" + name) !== undefined;
+		});
+		if(configured) {
+			var parsed = manager.parseKeyDescriptors("((cm6-" + name + "))", {wiki: wiki});
+			return manager.getPrintableShortcuts(parsed).map(twShortcutToCM).filter(function(key, index, keys) {
+				return key && keys.indexOf(key) === index;
+			});
+		}
+	}
+	return [defaultShortcut];
 }
 
 function hasWindowTimers() {
@@ -1666,18 +1692,14 @@ class CodeMirrorEngine {
 			var addCursorBelow = (core.commands || {}).addCursorBelow;
 
 			var multiCursorKeymap = [];
-			var addCursorUpKey = getShortcut(wiki, "add-cursor-up", "Ctrl-Alt-ArrowUp");
-			var addCursorDownKey = getShortcut(wiki, "add-cursor-down", "Ctrl-Alt-ArrowDown");
-			if(addCursorAbove && addCursorUpKey) {
-				multiCursorKeymap.push({
-					key: addCursorUpKey,
-					run: addCursorAbove
+			if(addCursorAbove) {
+				getShortcuts(wiki, "add-cursor-up", "Ctrl-Alt-ArrowUp").forEach(function(key) {
+					multiCursorKeymap.push({key: key, run: addCursorAbove});
 				});
 			}
-			if(addCursorBelow && addCursorDownKey) {
-				multiCursorKeymap.push({
-					key: addCursorDownKey,
-					run: addCursorBelow
+			if(addCursorBelow) {
+				getShortcuts(wiki, "add-cursor-down", "Ctrl-Alt-ArrowDown").forEach(function(key) {
+					multiCursorKeymap.push({key: key, run: addCursorBelow});
 				});
 			}
 			if(multiCursorKeymap.length && cmKeymap) {
@@ -2434,18 +2456,14 @@ class CodeMirrorEngine {
 				var mcAddBelow = (core.commands || {}).addCursorBelow;
 				var mcKeymap = [];
 				var mcWiki = this.widget && this.widget.wiki;
-				var mcAddCursorUpKey = getShortcut(mcWiki, "add-cursor-up", "Ctrl-Alt-ArrowUp");
-				var mcAddCursorDownKey = getShortcut(mcWiki, "add-cursor-down", "Ctrl-Alt-ArrowDown");
-				if(mcAddAbove && mcAddCursorUpKey) {
-					mcKeymap.push({
-						key: mcAddCursorUpKey,
-						run: mcAddAbove
+				if(mcAddAbove) {
+					getShortcuts(mcWiki, "add-cursor-up", "Ctrl-Alt-ArrowUp").forEach(function(key) {
+						mcKeymap.push({key: key, run: mcAddAbove});
 					});
 				}
-				if(mcAddBelow && mcAddCursorDownKey) {
-					mcKeymap.push({
-						key: mcAddCursorDownKey,
-						run: mcAddBelow
+				if(mcAddBelow) {
+					getShortcuts(mcWiki, "add-cursor-down", "Ctrl-Alt-ArrowDown").forEach(function(key) {
+						mcKeymap.push({key: key, run: mcAddBelow});
 					});
 				}
 				if(mcKeymap.length && core.view.keymap) {
